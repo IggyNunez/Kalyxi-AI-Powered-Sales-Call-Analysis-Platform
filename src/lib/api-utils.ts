@@ -1,0 +1,213 @@
+import { createClient } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
+import { User, UserRole } from "@/types/database";
+
+// Standard API response types
+export interface ApiResponse<T = unknown> {
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+// Get current user with org info
+export async function getCurrentUser(): Promise<{
+  user: User | null;
+  orgId: string | null;
+  role: UserRole | null;
+  error?: string;
+}> {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user: authUser },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !authUser) {
+      return { user: null, orgId: null, role: null };
+    }
+
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", authUser.id)
+      .single();
+
+    if (userError || !user) {
+      return { user: null, orgId: null, role: null };
+    }
+
+    return {
+      user: user as User,
+      orgId: user.org_id,
+      role: user.role as UserRole,
+    };
+  } catch {
+    return { user: null, orgId: null, role: null, error: "Failed to get user" };
+  }
+}
+
+// Require authentication
+export async function requireAuth() {
+  const { user, orgId, role } = await getCurrentUser();
+
+  if (!user || !orgId) {
+    return {
+      user: null,
+      orgId: null,
+      role: null,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+
+  return { user, orgId, role, response: null };
+}
+
+// Require specific roles
+export async function requireRole(allowedRoles: UserRole[]) {
+  const { user, orgId, role, response } = await requireAuth();
+
+  if (response) return { user: null, orgId: null, role: null, response };
+
+  if (!role || !allowedRoles.includes(role)) {
+    return {
+      user: null,
+      orgId: null,
+      role: null,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
+  }
+
+  return { user, orgId, role, response: null };
+}
+
+// Require admin or superadmin
+export async function requireAdmin() {
+  return requireRole(["admin", "superadmin"]);
+}
+
+// Require superadmin
+export async function requireSuperadmin() {
+  return requireRole(["superadmin"]);
+}
+
+// Rate limiting (in-memory for development, use Redis in production)
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+export function checkRateLimit(
+  identifier: string,
+  limit: number = 100,
+  windowMs: number = 60000
+): { allowed: boolean; remaining: number; resetAt: number } {
+  const now = Date.now();
+  const key = identifier;
+  const record = rateLimitStore.get(key);
+
+  if (!record || now > record.resetAt) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
+    return { allowed: true, remaining: limit - 1, resetAt: now + windowMs };
+  }
+
+  if (record.count >= limit) {
+    return { allowed: false, remaining: 0, resetAt: record.resetAt };
+  }
+
+  record.count++;
+  return { allowed: true, remaining: limit - record.count, resetAt: record.resetAt };
+}
+
+// Input sanitization
+export function sanitizeInput(input: string): string {
+  return input
+    .trim()
+    .replace(/<[^>]*>/g, "") // Remove HTML tags
+    .replace(/[<>'"]/g, ""); // Remove potentially dangerous characters
+}
+
+// Validate UUID
+export function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
+// Pagination helper
+export interface PaginationParams {
+  page: number;
+  pageSize: number;
+  offset: number;
+}
+
+export function getPaginationParams(
+  searchParams: URLSearchParams,
+  defaultPageSize: number = 20,
+  maxPageSize: number = 100
+): PaginationParams {
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const requestedSize = parseInt(searchParams.get("pageSize") || String(defaultPageSize), 10);
+  const pageSize = Math.min(Math.max(1, requestedSize), maxPageSize);
+  const offset = (page - 1) * pageSize;
+
+  return { page, pageSize, offset };
+}
+
+// Sorting helper
+export interface SortParams {
+  sortBy: string;
+  sortOrder: "asc" | "desc";
+}
+
+export function getSortParams(
+  searchParams: URLSearchParams,
+  allowedFields: string[],
+  defaultField: string = "created_at",
+  defaultOrder: "asc" | "desc" = "desc"
+): SortParams {
+  const sortBy = searchParams.get("sortBy") || defaultField;
+  const sortOrder = (searchParams.get("sortOrder") || defaultOrder) as "asc" | "desc";
+
+  return {
+    sortBy: allowedFields.includes(sortBy) ? sortBy : defaultField,
+    sortOrder: sortOrder === "asc" ? "asc" : "desc",
+  };
+}
+
+// Error response helper
+export function errorResponse(message: string, status: number = 400) {
+  return NextResponse.json({ error: message }, { status });
+}
+
+// Success response helper
+export function successResponse<T>(data: T, status: number = 200) {
+  return NextResponse.json({ data }, { status });
+}
+
+// Audit log helper
+export async function createAuditLog(
+  orgId: string,
+  userId: string | null,
+  action: string,
+  entityType: string,
+  entityId?: string,
+  oldValues?: Record<string, unknown>,
+  newValues?: Record<string, unknown>,
+  request?: Request
+) {
+  try {
+    const supabase = await createClient();
+
+    await supabase.from("audit_logs").insert({
+      org_id: orgId,
+      user_id: userId,
+      action,
+      entity_type: entityType,
+      entity_id: entityId,
+      old_values: oldValues,
+      new_values: newValues,
+      ip_address: request?.headers.get("x-forwarded-for") || null,
+      user_agent: request?.headers.get("user-agent") || null,
+    });
+  } catch (error) {
+    console.error("Failed to create audit log:", error);
+  }
+}
