@@ -250,16 +250,16 @@ export default function SubmitCallPage() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={submitting}>
+                  <Button type="submit" disabled={submitting} className="gap-2">
                     {submitting ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Submitting...
+                        <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin" />
+                        <span>Submitting...</span>
                       </>
                     ) : (
                       <>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Submit for Analysis
+                        <FileText className="h-4 w-4 flex-shrink-0" />
+                        <span>Submit for Analysis</span>
                       </>
                     )}
                   </Button>

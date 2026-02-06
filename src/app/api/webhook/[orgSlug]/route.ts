@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import crypto from "crypto";
+import { checkRateLimit, RATE_LIMITS, addRateLimitHeaders } from "@/lib/rate-limiter";
 
 // Webhook payload schema
 const webhookPayloadSchema = z.object({
@@ -19,6 +20,16 @@ const webhookPayloadSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
+// Timing-safe string comparison to prevent timing attacks
+function timingSafeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still do the comparison to avoid length-based timing attacks
+    crypto.timingSafeEqual(Buffer.from(a), Buffer.from(a));
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
 // Verify webhook signature
 function verifySignature(
   payload: string,
@@ -32,10 +43,7 @@ function verifySignature(
     .update(payload)
     .digest("hex");
 
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
+  return timingSafeCompare(signature, expectedSignature);
 }
 
 // POST /api/webhook/[orgSlug] - Receive call data via webhook
@@ -45,6 +53,25 @@ export async function POST(
 ) {
   const startTime = Date.now();
   const { orgSlug } = await params;
+
+  // Rate limiting by org slug + IP
+  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rateLimitKey = `webhook:${orgSlug}:${clientIp}`;
+  const rateLimitResult = await checkRateLimit(
+    rateLimitKey,
+    RATE_LIMITS.webhook.limit,
+    RATE_LIMITS.webhook.windowMs
+  );
+
+  if (!rateLimitResult.allowed) {
+    const headers = new Headers();
+    addRateLimitHeaders(headers, rateLimitResult);
+    headers.set("Retry-After", Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString());
+    return new NextResponse(
+      JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
+      { status: 429, headers }
+    );
+  }
 
   const supabase = createAdminClient();
 
@@ -84,7 +111,8 @@ export async function POST(
     authenticated = verifySignature(rawBody, signature, org.webhook_secret);
   } else if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.substring(7);
-    authenticated = token === org.webhook_secret;
+    // Use timing-safe comparison to prevent timing attacks
+    authenticated = timingSafeCompare(token, org.webhook_secret);
   }
 
   if (!authenticated) {
@@ -258,6 +286,21 @@ export async function GET(
   { params }: { params: Promise<{ orgSlug: string }> }
 ) {
   const { orgSlug } = await params;
+
+  // Rate limiting by org slug + IP (less strict for GET)
+  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rateLimitKey = `webhook-get:${orgSlug}:${clientIp}`;
+  const rateLimitResult = await checkRateLimit(rateLimitKey, 60, 60000); // 60 per minute
+
+  if (!rateLimitResult.allowed) {
+    const headers = new Headers();
+    addRateLimitHeaders(headers, rateLimitResult);
+    return new NextResponse(
+      JSON.stringify({ error: "Rate limit exceeded" }),
+      { status: 429, headers }
+    );
+  }
+
   const supabase = createAdminClient();
 
   const { data: org, error } = await supabase

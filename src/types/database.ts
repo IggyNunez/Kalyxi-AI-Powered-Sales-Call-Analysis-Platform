@@ -14,6 +14,11 @@ export type GradingFieldType = "score" | "text" | "checklist" | "boolean" | "per
 export type ImportanceLevel = "high" | "medium" | "low";
 export type PlanType = "free" | "starter" | "professional" | "enterprise";
 export type ReportStatus = "generating" | "ready" | "failed";
+export type ScriptStatus = "draft" | "active" | "archived";
+export type ScorecardStatus = "draft" | "active" | "archived";
+export type InsightCategory = "general" | "coaching" | "performance" | "compliance" | "custom";
+export type InsightOutputFormat = "text" | "bullets" | "numbered" | "json";
+export type ScoredBy = "ai" | "manual" | "hybrid";
 
 // Grading criteria configuration
 export interface GradingCriterion {
@@ -37,6 +42,39 @@ export interface ScorecardField {
   scoringMethod: "average" | "sum" | "weighted";
   passingThreshold: number;
   linkedCriteria: string[]; // IDs of grading criteria
+}
+
+// Script section structure for JSONB
+export interface ScriptSection {
+  id: string;
+  name: string;
+  content: string;
+  tips?: string[];
+  order: number;
+}
+
+// Scorecard criterion structure for JSONB
+export interface ScorecardCriterion {
+  id: string;
+  name: string;
+  description: string;
+  weight: number;
+  max_score: number;
+  scoring_guide: string;
+  keywords?: string[];
+  order: number;
+}
+
+// Detailed criterion score result
+export interface CriterionScoreResult {
+  name: string;
+  score: number;
+  max_score: number;
+  weight: number;
+  weighted_score: number;
+  feedback?: string;
+  highlights?: string[];
+  improvements?: string[];
 }
 
 // Organization settings
@@ -633,6 +671,269 @@ export interface Database {
           created_at?: string;
         };
       };
+      scripts: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          description?: string;
+          version: number;
+          sections: ScriptSection[];
+          status: ScriptStatus;
+          is_default: boolean;
+          created_by?: string;
+          created_at: string;
+          updated_at: string;
+          archived_at?: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          name: string;
+          description?: string;
+          version?: number;
+          sections?: ScriptSection[];
+          status?: ScriptStatus;
+          is_default?: boolean;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+          archived_at?: string;
+        };
+        Update: {
+          id?: string;
+          org_id?: string;
+          name?: string;
+          description?: string;
+          version?: number;
+          sections?: ScriptSection[];
+          status?: ScriptStatus;
+          is_default?: boolean;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+          archived_at?: string;
+        };
+      };
+      scorecards: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          description?: string;
+          version: number;
+          criteria: ScorecardCriterion[];
+          total_weight: number;
+          status: ScorecardStatus;
+          is_default: boolean;
+          script_id?: string;
+          created_by?: string;
+          created_at: string;
+          updated_at: string;
+          activated_at?: string;
+          archived_at?: string;
+          previous_version_id?: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          name: string;
+          description?: string;
+          version?: number;
+          criteria?: ScorecardCriterion[];
+          total_weight?: number;
+          status?: ScorecardStatus;
+          is_default?: boolean;
+          script_id?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+          activated_at?: string;
+          archived_at?: string;
+          previous_version_id?: string;
+        };
+        Update: {
+          id?: string;
+          org_id?: string;
+          name?: string;
+          description?: string;
+          version?: number;
+          criteria?: ScorecardCriterion[];
+          total_weight?: number;
+          status?: ScorecardStatus;
+          is_default?: boolean;
+          script_id?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+          activated_at?: string;
+          archived_at?: string;
+          previous_version_id?: string;
+        };
+      };
+      insight_templates: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          description?: string;
+          category: InsightCategory;
+          prompt_template: string;
+          output_format: InsightOutputFormat;
+          max_insights?: number;
+          is_active: boolean;
+          is_default: boolean;
+          display_order: number;
+          created_by?: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          name: string;
+          description?: string;
+          category?: InsightCategory;
+          prompt_template: string;
+          output_format?: InsightOutputFormat;
+          max_insights?: number;
+          is_active?: boolean;
+          is_default?: boolean;
+          display_order?: number;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          org_id?: string;
+          name?: string;
+          description?: string;
+          category?: InsightCategory;
+          prompt_template?: string;
+          output_format?: InsightOutputFormat;
+          max_insights?: number;
+          is_active?: boolean;
+          is_default?: boolean;
+          display_order?: number;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      call_score_results: {
+        Row: {
+          id: string;
+          call_id: string;
+          scorecard_id: string;
+          org_id: string;
+          total_score: number;
+          max_possible_score: number;
+          percentage_score: number;
+          criteria_scores: Record<string, CriterionScoreResult>;
+          summary?: string;
+          strengths: string[];
+          improvements: string[];
+          scored_at: string;
+          scored_by: ScoredBy;
+          scorecard_version: number;
+          scorecard_snapshot?: ScorecardCriterion[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          call_id: string;
+          scorecard_id: string;
+          org_id: string;
+          total_score: number;
+          max_possible_score: number;
+          percentage_score: number;
+          criteria_scores?: Record<string, CriterionScoreResult>;
+          summary?: string;
+          strengths?: string[];
+          improvements?: string[];
+          scored_at?: string;
+          scored_by?: ScoredBy;
+          scorecard_version: number;
+          scorecard_snapshot?: ScorecardCriterion[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          call_id?: string;
+          scorecard_id?: string;
+          org_id?: string;
+          total_score?: number;
+          max_possible_score?: number;
+          percentage_score?: number;
+          criteria_scores?: Record<string, CriterionScoreResult>;
+          summary?: string;
+          strengths?: string[];
+          improvements?: string[];
+          scored_at?: string;
+          scored_by?: ScoredBy;
+          scorecard_version?: number;
+          scorecard_snapshot?: ScorecardCriterion[];
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      criteria_optimizations: {
+        Row: {
+          id: string;
+          org_id: string;
+          criterion_name: string;
+          criterion_id?: string;
+          total_evaluations: number;
+          total_score: number;
+          average_score: number;
+          score_distribution: Record<string, number>;
+          trend_data: Array<{ date: string; avg: number; count: number }>;
+          common_strengths: string[];
+          common_improvements: string[];
+          period_start: string;
+          period_end: string;
+          last_calculated_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          criterion_name: string;
+          criterion_id?: string;
+          total_evaluations?: number;
+          total_score?: number;
+          score_distribution?: Record<string, number>;
+          trend_data?: Array<{ date: string; avg: number; count: number }>;
+          common_strengths?: string[];
+          common_improvements?: string[];
+          period_start: string;
+          period_end: string;
+          last_calculated_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          org_id?: string;
+          criterion_name?: string;
+          criterion_id?: string;
+          total_evaluations?: number;
+          total_score?: number;
+          score_distribution?: Record<string, number>;
+          trend_data?: Array<{ date: string; avg: number; count: number }>;
+          common_strengths?: string[];
+          common_improvements?: string[];
+          period_start?: string;
+          period_end?: string;
+          last_calculated_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       caller_stats: {
@@ -706,3 +1007,24 @@ export type WebhookLog = Database["public"]["Tables"]["webhook_logs"]["Row"];
 export type Invitation = Database["public"]["Tables"]["invitations"]["Row"];
 export type AuditLog = Database["public"]["Tables"]["audit_logs"]["Row"];
 export type ProcessingQueueItem = Database["public"]["Tables"]["processing_queue"]["Row"];
+
+// New types for Scripts, Scorecards, Insights
+export type Script = Database["public"]["Tables"]["scripts"]["Row"];
+export type ScriptInsert = Database["public"]["Tables"]["scripts"]["Insert"];
+export type ScriptUpdate = Database["public"]["Tables"]["scripts"]["Update"];
+
+export type Scorecard = Database["public"]["Tables"]["scorecards"]["Row"];
+export type ScorecardInsert = Database["public"]["Tables"]["scorecards"]["Insert"];
+export type ScorecardUpdate = Database["public"]["Tables"]["scorecards"]["Update"];
+
+export type InsightTemplate = Database["public"]["Tables"]["insight_templates"]["Row"];
+export type InsightTemplateInsert = Database["public"]["Tables"]["insight_templates"]["Insert"];
+export type InsightTemplateUpdate = Database["public"]["Tables"]["insight_templates"]["Update"];
+
+export type CallScoreResult = Database["public"]["Tables"]["call_score_results"]["Row"];
+export type CallScoreResultInsert = Database["public"]["Tables"]["call_score_results"]["Insert"];
+export type CallScoreResultUpdate = Database["public"]["Tables"]["call_score_results"]["Update"];
+
+export type CriteriaOptimization = Database["public"]["Tables"]["criteria_optimizations"]["Row"];
+export type CriteriaOptimizationInsert = Database["public"]["Tables"]["criteria_optimizations"]["Insert"];
+export type CriteriaOptimizationUpdate = Database["public"]["Tables"]["criteria_optimizations"]["Update"];

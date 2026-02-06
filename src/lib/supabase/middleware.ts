@@ -1,12 +1,65 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Security headers configuration
+const securityHeaders = {
+  // Content Security Policy
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Required for Next.js
+    "style-src 'self' 'unsafe-inline'", // Required for Tailwind
+    "img-src 'self' data: https: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.openai.com",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+  ].join("; "),
+
+  // Prevent clickjacking
+  "X-Frame-Options": "DENY",
+
+  // Prevent MIME type sniffing
+  "X-Content-Type-Options": "nosniff",
+
+  // Enable XSS filter
+  "X-XSS-Protection": "1; mode=block",
+
+  // Referrer policy
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+
+  // Permissions policy (formerly Feature-Policy)
+  "Permissions-Policy": [
+    "camera=()",
+    "microphone=()",
+    "geolocation=()",
+    "payment=()",
+  ].join(", "),
+
+  // HSTS - Enable strict HTTPS (only in production)
+  ...(process.env.NODE_ENV === "production"
+    ? { "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload" }
+    : {}),
+};
+
+// Add security headers to response
+function addSecurityHeaders(response: NextResponse): NextResponse {
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   });
+
+  // Add security headers
+  response = addSecurityHeaders(response);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,20 +71,24 @@ export async function updateSession(request: NextRequest) {
         },
         set(name: string, value: string, options: CookieOptions) {
           request.cookies.set({ name, value, ...options });
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
+          response = addSecurityHeaders(
+            NextResponse.next({
+              request: {
+                headers: request.headers,
+              },
+            })
+          );
           response.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
           request.cookies.set({ name, value: "", ...options });
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
+          response = addSecurityHeaders(
+            NextResponse.next({
+              request: {
+                headers: request.headers,
+              },
+            })
+          );
           response.cookies.set({ name, value: "", ...options });
         },
       },

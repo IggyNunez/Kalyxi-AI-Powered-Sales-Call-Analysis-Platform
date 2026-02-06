@@ -1,0 +1,187 @@
+PROJECT PLAN
+AI-Powered Sales Call Analysis Platform
+Kalyxi AI
+
+Prepared by: Kalyxi AI Development Team
+Date: February 2025
+Version 1.0 | Confidential
+
+1. Executive Summary
+This document outlines the project plan for building a multi-tenant, AI-powered Sales Call Analysis Platform. The system ingests call notes (via Google Notes/Gemini or webhook), processes them through an AI agent (OpenAI API), and generates comprehensive performance reports with configurable grading criteria, scorecards, and dashboards.
+The platform is designed for sales organizations that need to systematically evaluate caller performance, track metrics over time, and provide actionable coaching insights through a fully configurable grading system.
+
+2. System Architecture Overview
+The platform follows a modular pipeline architecture with the following data flow:
+Data Flow Pipeline
+Google Notes (Gemini) / Webhook Endpoint
+    ↓  Ingestion Layer (Google API / Custom Webhook)
+AI Agent (OpenAI API) → Analysis & Grading Engine
+    ↓  Report Generation
+Dashboard Enrichment → Caller Metrics & Scorecards
+    ↓  Multi-tenant User Interface (Role-based Access)
+
+3. Recommended Tech Stack
+Layer	Technology
+Frontend	Next.js 14+ (App Router), React, TailwindCSS, shadcn/ui
+Backend / API	Next.js API Routes / Node.js, tRPC or REST
+Database	Supabase (PostgreSQL) with Row Level Security
+Authentication	Supabase Auth (email/password, SSO, magic links)
+AI Engine	OpenAI API (GPT-4o / GPT-4o-mini) with structured outputs
+Ingestion	Google Notes API / Custom Webhook (Next.js API route)
+File Storage	Supabase Storage (call recordings, exports)
+Hosting	Vercel (frontend + API) / Supabase (DB + Auth)
+Monitoring	Vercel Analytics, Sentry, Supabase Dashboard
+
+4. Core Data Model
+The database is designed around multi-tenancy with organization-level isolation using Supabase Row Level Security (RLS). All tables include org_id for tenant scoping.
+Key Entities
+Entity	Description	Key Fields
+organizations	Tenant/company accounts	id, name, slug, settings_json, plan
+users	All platform users with roles	id, org_id, email, role (caller/admin/superadmin)
+callers	Sales reps being evaluated	id, org_id, user_id, name, team, active
+calls	Individual call records	id, org_id, caller_id, raw_notes, source, timestamp
+analyses	AI-generated analysis per call	id, call_id, ai_model, grading_results_json
+grading_templates	Configurable grading criteria	id, org_id, name, criteria_json, is_default
+scorecard_configs	Scorecard field definitions	id, org_id, fields_json, weight_config
+reports	Generated reports with enrichment	id, call_id, analysis_id, report_json, status
+
+5. Feature Breakdown
+5.1 Call Ingestion Layer
+Two ingestion methods are supported to maximize flexibility:
+Option A – Google Notes (Gemini) Integration: Connect via Google API to automatically pull call notes from Google Keep/Notes. Gemini can pre-process and structure raw notes before ingestion.
+Option B – Webhook Endpoint: Custom webhook URL generated per organization. Third-party tools (CRMs, dialers, n8n workflows) can POST call data directly. Supports JSON payloads with caller ID, notes, timestamp, and metadata.
+5.2 AI Analysis Engine
+The core analysis engine processes each call through the OpenAI API using dynamically constructed prompts based on the organization's grading configuration. The AI evaluates calls against all configured criteria and returns structured JSON results.
+Default Grading Categories (Fully Configurable)
+Category	Description	Type
+Strengths	Key positive behaviors demonstrated	Text + Score
+Areas for Improvement	Identified coaching opportunities	Text + Score
+Script Elements Used	Checklist of script items followed	Checklist + %
+Script Elements Missed	Script items not covered	Checklist + Flag
+Objection Handling	Quality of response to objections	Score 1-10 + Text
+Gatekeeper Recognition	Detection of gatekeeper interactions (toggleable)	Boolean + Text
+Empathetic Tone	Warmth, understanding, rapport building	Score 1-10
+Clear Identification	Caller properly identified self and purpose	Score 1-10
+Value Proposition	Effectiveness of value communication	Score 1-10 + Text
+Appointment Setting	Success in booking next steps	Boolean + Score
+Immediate Action Items	Follow-up tasks identified	List
+Executive Summary	Overall call narrative summary	Text
+Admins can add unlimited custom grading fields with configurable field types: Score (1-10), Text, Checklist, Boolean, and Percentage.
+5.3 Reports & Dashboard Enrichment
+Each analyzed call generates a comprehensive report that populates the dashboard. Reports include the performance scorecard, individual field breakdowns, trend analysis, and AI-generated coaching recommendations.
+Performance Scorecard Table: Unlimited configurable scorecard criteria with weighted scoring. Each criterion has a name, weight, and scoring method. Final composite score calculated from weighted average.
+Call Metrics: Duration tracking, talk-to-listen ratio, calls per day/week/month, conversion rates, average scores per grading category, and trend indicators.
+Caller Dashboard: Individual caller profiles with aggregate metrics, score history, ranking against peers, and personal improvement tracking. Filterable by date range, team, and campaign.
+5.4 Settings & Configuration
+The settings page provides full control over the grading system, scorecard configuration, webhook management, and organizational preferences.
+Setting Area	Capabilities
+Grading Criteria	Add/edit/remove/reorder grading fields. Set field types, weights, and descriptions. Toggle gatekeeper recognition on/off.
+Scorecard Config	Define unlimited scorecard criteria. Assign weights and scoring methods. Set passing thresholds.
+Webhook Management	Generate/regenerate webhook URLs. View request logs. Test endpoint. Set authentication secrets.
+AI Configuration	OpenAI API key management. Model selection (GPT-4o, GPT-4o-mini). Custom prompt templates per grading field.
+Org Settings	Company name, branding, timezone, notification preferences. Team/department structure.
+User Management	Invite/remove users. Assign roles. Manage teams. Bulk import callers.
+5.5 Multi-Tenant Architecture & Roles
+Role	Scope	Permissions
+Caller (User)	Own data only	View own calls, reports, and scores. See personal dashboard and metrics. No access to other callers or settings.
+Admin	Organization-wide	View all callers and reports. Configure grading criteria and scorecards. Manage users and teams. Access org-level analytics. Manage webhooks and integrations.
+Superadmin	Platform-wide	All Admin permissions plus: Create/manage organizations. Configure platform-level settings. View cross-org analytics. Manage billing and plans. System health monitoring.
+
+6. Development Phases
+Phase 1 – Foundation (Weeks 1-3)
+Core infrastructure, authentication, and multi-tenant database setup.
+Task	Details	Duration	Priority
+Project Setup	Next.js 14 app, Supabase project, Vercel deployment, CI/CD pipeline	2 days	P0
+Database Schema	All core tables with RLS policies, migrations, seed data	3 days	P0
+Authentication	Supabase Auth setup, role-based middleware, session management	2 days	P0
+Multi-tenancy	Org creation, user invitation flow, role assignment, RLS testing	3 days	P0
+API Foundation	Core CRUD endpoints for orgs, users, callers, calls	3 days	P0
+UI Shell	Layout, navigation, responsive design, role-based routing	2 days	P0
+
+Phase 2 – Ingestion Layer (Weeks 4-5)
+Call data ingestion via webhook and Google API integration.
+Task	Details	Duration	Priority
+Webhook Engine	Generate unique endpoints per org, payload validation, auth tokens, request logging	3 days	P0
+Google API Setup	OAuth2 flow, Google Notes/Keep API integration, polling or push sync	3 days	P1
+Gemini Pre-process	Optional Gemini API call to structure raw notes before AI analysis	2 days	P1
+Ingestion Queue	Background job processing for incoming calls, retry logic, deduplication	2 days	P0
+Testing & Logging	End-to-end ingestion tests, webhook test UI, request/error logging	2 days	P0
+
+Phase 3 – AI Analysis Engine (Weeks 6-8)
+Core AI grading system with configurable criteria and structured outputs.
+Task	Details	Duration	Priority
+Prompt Builder	Dynamic prompt construction from org grading config, few-shot examples	3 days	P0
+OpenAI Integration	API calls with structured output (JSON mode), model selection, error handling	2 days	P0
+Grading Engine	Score calculation, weighted averages, composite scoring, pass/fail logic	3 days	P0
+Custom Fields	UI for creating/editing grading fields (score, text, checklist, boolean, %)	3 days	P0
+Gatekeeper Logic	Toggle-able gatekeeper detection and scoring adjustment	1 day	P1
+Report Generator	Structured report creation from analysis results, stored as JSON	3 days	P0
+Batch Processing	Queue system for analyzing multiple calls, progress tracking	2 days	P1
+
+Phase 4 – Dashboard & Reports (Weeks 9-12)
+Full dashboard implementation with caller metrics, scorecards, and visualizations.
+Task	Details	Duration	Priority
+Caller Dashboard	Individual caller view with scores, trends, call history, and rankings	4 days	P0
+Performance Scorecard	Configurable scorecard table with unlimited criteria, weights, and thresholds	3 days	P0
+Org Analytics	Aggregate metrics: avg scores, top performers, trends, conversion rates	4 days	P0
+Call Detail View	Full report display with all grading fields, AI comments, action items	3 days	P0
+Charts & Graphs	Score trends, radar charts, comparison views, date range filters	3 days	P1
+Export System	PDF/CSV report export, bulk data export, scheduled reports	2 days	P1
+Call Metrics Engine	Duration, talk ratios, frequency, conversion tracking, KPI calculations	3 days	P0
+Leaderboard	Caller rankings by composite score, filterable by team/period	2 days	P2
+
+Phase 5 – Settings & Admin (Weeks 13-14)
+Complete settings interface and administrative tools.
+Task	Details	Duration	Priority
+Settings UI	Tabbed settings page: grading, scorecard, webhooks, AI config, org, users	3 days	P0
+Grading Config UI	Drag-and-drop reordering, field type selection, preview, import/export	3 days	P0
+User Management	Invite flow, role management, team assignment, bulk operations	2 days	P0
+Webhook Admin	Generate/revoke URLs, view logs, test endpoint, secret rotation	2 days	P0
+Superadmin Panel	Org management, platform analytics, system health, billing overview	3 days	P1
+
+Phase 6 – Polish & Launch (Weeks 15-16)
+Testing, optimization, and production deployment.
+Task	Details	Duration	Priority
+E2E Testing	Cypress/Playwright tests for critical flows, API integration tests	3 days	P0
+Performance	Query optimization, caching strategy, lazy loading, bundle optimization	2 days	P0
+Security Audit	RLS policy review, API auth checks, input sanitization, OWASP scan	2 days	P0
+Documentation	API docs, user guides, admin manual, onboarding flow	2 days	P1
+Production Deploy	Vercel production config, Supabase production DB, monitoring setup	2 days	P0
+Onboarding Flow	First-time org setup wizard, sample data, guided tour	2 days	P1
+
+7. Timeline Summary
+Phase	Weeks	Duration	Status
+Phase 1: Foundation	Weeks 1-3	3 weeks	Not Started
+Phase 2: Ingestion	Weeks 4-5	2 weeks	Not Started
+Phase 3: AI Engine	Weeks 6-8	3 weeks	Not Started
+Phase 4: Dashboard	Weeks 9-12	4 weeks	Not Started
+Phase 5: Settings	Weeks 13-14	2 weeks	Not Started
+Phase 6: Launch	Weeks 15-16	2 weeks	Not Started
+TOTAL	Weeks 1-16	16 weeks	~4 months
+
+8. Risks & Mitigations
+Risk	Impact	Mitigation	Contingency
+OpenAI API rate limits / costs	High	Implement caching, use GPT-4o-mini for bulk, queue system	Support multiple AI providers
+Google API deprecation	Medium	Webhook as primary method, Google API as optional	Manual upload fallback
+Multi-tenant data leakage	Critical	Supabase RLS on all tables, automated policy testing	Security audit before launch
+AI grading inconsistency	Medium	Structured outputs, few-shot prompts, calibration tools	Human review override
+Scope creep from custom fields	Medium	JSON-based config, strict field type validation	Limit custom fields per plan
+
+9. Success Metrics
+Metric	Target	Measurement
+Call Processing Time	< 30 seconds per call analysis	Average API response time
+Grading Accuracy	> 85% alignment with human review	Calibration test results
+System Uptime	99.5% availability	Monitoring dashboard
+User Adoption	> 80% daily active caller logins	Usage analytics
+Dashboard Load Time	< 2 seconds for main views	Vercel performance metrics
+Webhook Reliability	> 99% successful ingestion rate	Error rate monitoring
+
+10. Immediate Next Steps
+1.	Finalize tech stack decisions and set up Supabase project + Vercel deployment
+2.	Design and implement core database schema with multi-tenant RLS policies
+3.	Build authentication flow with role-based access (Caller / Admin / Superadmin)
+4.	Implement webhook endpoint generation and basic call ingestion pipeline
+5.	Prototype AI analysis engine with OpenAI structured outputs for 3-5 default grading fields
+6.	Create configurable grading criteria UI with drag-and-drop field management
+
+— End of Project Plan —

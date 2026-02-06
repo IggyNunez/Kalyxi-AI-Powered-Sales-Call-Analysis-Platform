@@ -92,30 +92,14 @@ export async function requireSuperadmin() {
   return requireRole(["superadmin"]);
 }
 
-// Rate limiting (in-memory for development, use Redis in production)
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
-
-export function checkRateLimit(
-  identifier: string,
-  limit: number = 100,
-  windowMs: number = 60000
-): { allowed: boolean; remaining: number; resetAt: number } {
-  const now = Date.now();
-  const key = identifier;
-  const record = rateLimitStore.get(key);
-
-  if (!record || now > record.resetAt) {
-    rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, remaining: limit - 1, resetAt: now + windowMs };
-  }
-
-  if (record.count >= limit) {
-    return { allowed: false, remaining: 0, resetAt: record.resetAt };
-  }
-
-  record.count++;
-  return { allowed: true, remaining: limit - record.count, resetAt: record.resetAt };
-}
+// Re-export rate limiting from dedicated module
+// Uses Redis if REDIS_URL is configured, otherwise falls back to in-memory
+export {
+  checkRateLimit,
+  addRateLimitHeaders,
+  RATE_LIMITS,
+  type RateLimitResult,
+} from "@/lib/rate-limiter";
 
 // Input sanitization
 export function sanitizeInput(input: string): string {

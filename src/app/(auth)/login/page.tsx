@@ -115,17 +115,15 @@ function LoginForm() {
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-between w-full p-12">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/30">
-              <Image
-                src="/logo.png"
-                alt="Kalyxi"
-                width={24}
-                height={24}
-                className="object-contain brightness-0 invert"
-              />
-            </div>
-            <span className="text-2xl font-bold text-white">Kalyxi</span>
+          <div className="flex items-center">
+            <Image
+              src="/logo-white.png"
+              alt="Kalyxi"
+              width={150}
+              height={45}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           </div>
 
           {/* Main content */}
@@ -180,17 +178,15 @@ function LoginForm() {
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
         <div className="w-full max-w-md space-y-8 animate-fade-in">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg">
-              <Image
-                src="/logo.png"
-                alt="Kalyxi"
-                width={24}
-                height={24}
-                className="object-contain brightness-0 invert"
-              />
-            </div>
-            <span className="text-2xl font-bold">Kalyxi</span>
+          <div className="lg:hidden flex items-center justify-center mb-8">
+            <Image
+              src="/logo.png"
+              alt="Kalyxi"
+              width={150}
+              height={45}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           </div>
 
           <div className="text-center lg:text-left">
@@ -325,15 +321,13 @@ function LoginFormFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 animate-pulse">
-          <Image
-            src="/logo.png"
-            alt="Kalyxi"
-            width={28}
-            height={28}
-            className="object-contain brightness-0 invert"
-          />
-        </div>
+        <Image
+          src="/logo.png"
+          alt="Kalyxi"
+          width={150}
+          height={45}
+          className="h-10 w-auto object-contain animate-pulse"
+        />
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     </div>

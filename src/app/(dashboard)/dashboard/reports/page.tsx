@@ -53,11 +53,11 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <Button
-              className="w-full"
+              className="w-full gap-2"
               onClick={() => handleGenerateReport("performance")}
             >
-              <FileText className="mr-2 h-4 w-4" />
-              Generate Report
+              <FileText className="h-4 w-4 flex-shrink-0" />
+              <span>Generate Report</span>
             </Button>
           </CardContent>
         </Card>
@@ -71,11 +71,11 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <Button
-              className="w-full"
+              className="w-full gap-2"
               onClick={() => handleGenerateReport("analysis")}
             >
-              <FileText className="mr-2 h-4 w-4" />
-              Generate Report
+              <FileText className="h-4 w-4 flex-shrink-0" />
+              <span>Generate Report</span>
             </Button>
           </CardContent>
         </Card>
@@ -89,11 +89,11 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <Button
-              className="w-full"
+              className="w-full gap-2"
               onClick={() => handleGenerateReport("insights")}
             >
-              <FileText className="mr-2 h-4 w-4" />
-              Generate Report
+              <FileText className="h-4 w-4 flex-shrink-0" />
+              <span>Generate Report</span>
             </Button>
           </CardContent>
         </Card>
@@ -103,14 +103,14 @@ export default function ReportsPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Generated Reports</CardTitle>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Calendar className="mr-2 h-4 w-4" />
-                Date Range
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-2">
+                <Calendar className="h-4 w-4 flex-shrink-0" />
+                <span>Date Range</span>
               </Button>
-              <Button variant="outline" size="sm">
-                <Filter className="mr-2 h-4 w-4" />
-                Filter
+              <Button variant="outline" size="sm" className="gap-2">
+                <Filter className="h-4 w-4 flex-shrink-0" />
+                <span>Filter</span>
               </Button>
             </div>
           </div>
@@ -134,15 +134,15 @@ export default function ReportsPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <Badge
                       variant={report.status === "ready" ? "success" : "secondary"}
                     >
                       {report.status}
                     </Badge>
-                    <Button variant="outline" size="sm" disabled={report.status !== "ready"}>
-                      <Download className="mr-2 h-4 w-4" />
-                      Download
+                    <Button variant="outline" size="sm" className="gap-2" disabled={report.status !== "ready"}>
+                      <Download className="h-4 w-4 flex-shrink-0" />
+                      <span>Download</span>
                     </Button>
                   </div>
                 </div>

@@ -1,0 +1,10 @@
+export { Navbar } from "./navbar";
+export { Hero } from "./hero";
+export { WhyKalyxi } from "./why-kalyxi";
+export { Features } from "./features";
+export { HowItWorks } from "./how-it-works";
+export { WhoWeHelp } from "./who-we-help";
+export { AIInsights } from "./ai-insights";
+export { Security } from "./security";
+export { CTASection } from "./cta-section";
+export { Footer } from "./footer";

@@ -276,6 +276,20 @@ body {
   animation: float 3s ease-in-out infinite;
 }
 
+.animate-float-slow {
+  animation: float 4s ease-in-out infinite;
+}
+
+.animate-float-medium {
+  animation: float 3s ease-in-out infinite;
+  animation-delay: 0.5s;
+}
+
+.animate-float-fast {
+  animation: float 2.5s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
 .animate-glow {
   animation: glow 2s ease-in-out infinite;
 }
@@ -322,6 +336,36 @@ body {
 .stagger-6 { animation-delay: 0.3s; opacity: 0; }
 .stagger-7 { animation-delay: 0.35s; opacity: 0; }
 .stagger-8 { animation-delay: 0.4s; opacity: 0; }
+
+/* Direct Animation Delay Utilities */
+.animation-delay-100 { animation-delay: 100ms; }
+.animation-delay-200 { animation-delay: 200ms; }
+.animation-delay-300 { animation-delay: 300ms; }
+.animation-delay-400 { animation-delay: 400ms; }
+.animation-delay-500 { animation-delay: 500ms; }
+.animation-delay-600 { animation-delay: 600ms; }
+.animation-delay-700 { animation-delay: 700ms; }
+.animation-delay-800 { animation-delay: 800ms; }
+.animation-delay-1000 { animation-delay: 1000ms; }
+
+/* Progress Animations */
+@keyframes progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+@keyframes progressHeight {
+  from { height: 0%; }
+  to { height: 100%; }
+}
+
+.animate-progress {
+  animation: progress 2s ease-out forwards;
+}
+
+.animate-progress-height {
+  animation: progressHeight 4s ease-out forwards;
+}
 
 /* ================================================
    GRADIENT UTILITIES

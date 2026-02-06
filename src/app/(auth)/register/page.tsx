@@ -188,17 +188,15 @@ export default function RegisterPage() {
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-between w-full p-12">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/30">
-              <Image
-                src="/logo.png"
-                alt="Kalyxi"
-                width={24}
-                height={24}
-                className="object-contain brightness-0 invert"
-              />
-            </div>
-            <span className="text-2xl font-bold text-white">Kalyxi</span>
+          <div className="flex items-center">
+            <Image
+              src="/logo-white.png"
+              alt="Kalyxi"
+              width={150}
+              height={45}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           </div>
 
           {/* Main content */}
@@ -229,18 +227,12 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-6">
-            {[
-              { value: "10K+", label: "Calls analyzed" },
-              { value: "500+", label: "Teams using" },
-              { value: "35%", label: "Avg improvement" },
-            ].map((stat, index) => (
-              <div key={index} className="text-center">
-                <p className="text-3xl font-bold text-white">{stat.value}</p>
-                <p className="text-sm text-gray-400">{stat.label}</p>
-              </div>
-            ))}
+          {/* Trust badge */}
+          <div className="flex items-center justify-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
+            <div className="text-center">
+              <p className="text-sm text-gray-400">Built with security-first architecture</p>
+              <p className="text-xs text-gray-500 mt-1">Row-level security • Encrypted data • Multi-tenant isolation</p>
+            </div>
           </div>
         </div>
       </div>
@@ -249,17 +241,15 @@ export default function RegisterPage() {
       <div className="flex-1 flex items-center justify-center p-8 bg-background overflow-y-auto">
         <div className="w-full max-w-md space-y-6 animate-fade-in py-8">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg">
-              <Image
-                src="/logo.png"
-                alt="Kalyxi"
-                width={24}
-                height={24}
-                className="object-contain brightness-0 invert"
-              />
-            </div>
-            <span className="text-2xl font-bold">Kalyxi</span>
+          <div className="lg:hidden flex items-center justify-center mb-6">
+            <Image
+              src="/logo.png"
+              alt="Kalyxi"
+              width={150}
+              height={45}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           </div>
 
           <div className="text-center lg:text-left">

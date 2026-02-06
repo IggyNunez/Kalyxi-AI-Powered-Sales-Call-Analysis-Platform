@@ -5,13 +5,16 @@ import {
   AnalysisResults,
   GradingResult,
   OrgSettings,
+  ScorecardCriterion,
+  Scorecard,
+  CriterionScoreResult,
 } from "@/types/database";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Build dynamic prompt from grading criteria
+// Build dynamic prompt from grading criteria (legacy support)
 function buildAnalysisPrompt(criteria: GradingCriterion[]): string {
   const criteriaDescriptions = criteria
     .sort((a, b) => a.order - b.order)
@@ -38,6 +41,90 @@ function buildAnalysisPrompt(criteria: GradingCriterion[]): string {
     })
     .join("\n");
 
+  return buildBasePrompt(criteriaDescriptions);
+}
+
+// Build prompt from scorecard criteria (new enhanced system)
+function buildScorecardPrompt(criteria: ScorecardCriterion[]): string {
+  const criteriaDescriptions = criteria
+    .sort((a, b) => a.order - b.order)
+    .map((c) => {
+      const keywordsHint = c.keywords?.length
+        ? ` Look for keywords: ${c.keywords.join(", ")}.`
+        : "";
+      return `- ${c.name} (${c.id}): ${c.description}
+    Score: 0 to ${c.max_score}
+    Weight: ${c.weight}%
+    Scoring Guide: ${c.scoring_guide}${keywordsHint}`;
+    })
+    .join("\n\n");
+
+  return `You are an expert sales call analyst. Analyze the following sales call notes/transcription and provide a comprehensive evaluation based on the scorecard criteria below.
+
+## Scorecard Criteria to Evaluate:
+${criteriaDescriptions}
+
+## Response Format:
+Return a JSON object with the following structure:
+{
+  "overallScore": number (0-100, weighted average of all criteria),
+  "criteriaScores": {
+    "criterion_id": {
+      "name": "string",
+      "score": number (0 to max_score for this criterion),
+      "max_score": number,
+      "weight": number,
+      "weighted_score": number (score/max_score * weight),
+      "feedback": "string (specific feedback)",
+      "highlights": ["string array of positive observations"],
+      "improvements": ["string array of suggestions"]
+    }
+  },
+  "gradingResults": [
+    {
+      "criterionId": "string",
+      "criterionName": "string",
+      "type": "score",
+      "value": number,
+      "score": number (normalized 0-100),
+      "feedback": "string",
+      "confidence": number (0-1)
+    }
+  ],
+  "compositeScore": number (weighted average),
+  "strengths": ["string array of key strengths"],
+  "improvements": ["string array of improvement areas"],
+  "executiveSummary": "2-3 sentence summary",
+  "actionItems": ["string array of follow-up actions"],
+  "objections": [
+    {
+      "objection": "the objection",
+      "response": "how handled",
+      "effectiveness": number (1-10)
+    }
+  ],
+  "gatekeeperDetected": boolean,
+  "gatekeeperHandling": "string if detected",
+  "competitorMentions": ["string array"],
+  "sentiment": {
+    "overall": "positive|neutral|negative",
+    "score": number (-1 to 1),
+    "progression": [{"timestamp": number, "sentiment": number}]
+  },
+  "callMetrics": {
+    "talkRatio": number (0-1),
+    "questionCount": number,
+    "interruptionCount": number,
+    "silenceDuration": number
+  },
+  "recommendations": ["string array of coaching tips"]
+}
+
+Be thorough and specific. Each criterion score should match the scoring guide provided.`;
+}
+
+// Base prompt builder
+function buildBasePrompt(criteriaDescriptions: string): string {
   return `You are an expert sales call analyst. Analyze the following sales call notes/transcription and provide a comprehensive evaluation.
 
 ## Grading Criteria to Evaluate:
@@ -98,6 +185,7 @@ export async function analyzeCall(
 ): Promise<{
   success: boolean;
   analysis?: AnalysisResults;
+  scorecard?: Scorecard;
   processingTimeMs?: number;
   tokenUsage?: { prompt: number; completion: number; total: number };
   error?: string;
@@ -106,33 +194,52 @@ export async function analyzeCall(
   const supabase = createAdminClient();
 
   try {
-    // Get organization settings and grading template
+    // Get organization settings
     const { data: org } = await supabase
       .from("organizations")
       .select("settings_json")
       .eq("id", orgId)
       .single();
 
-    const { data: template } = await supabase
-      .from("grading_templates")
-      .select("criteria_json")
-      .eq("org_id", orgId)
-      .eq("is_default", true)
-      .eq("is_active", true)
-      .single();
-
-    if (!template) {
-      return { success: false, error: "No active grading template found" };
-    }
-
     const settings = org?.settings_json as OrgSettings | null;
-    const criteria = template.criteria_json as GradingCriterion[];
     const model = settings?.ai?.model || "gpt-4o";
     const temperature = settings?.ai?.temperature || 0.3;
-
-    // Build prompt
-    const systemPrompt = buildAnalysisPrompt(criteria);
     const customPrefix = settings?.ai?.customPromptPrefix || "";
+
+    // Try to get active scorecard first (new system)
+    const { data: scorecard } = await supabase
+      .from("scorecards")
+      .select("*")
+      .eq("org_id", orgId)
+      .eq("status", "active")
+      .eq("is_default", true)
+      .single();
+
+    let systemPrompt: string;
+    let scorecardCriteria: ScorecardCriterion[] | null = null;
+    let legacyCriteria: GradingCriterion[] | null = null;
+
+    if (scorecard) {
+      // Use new scorecard system
+      scorecardCriteria = scorecard.criteria as ScorecardCriterion[];
+      systemPrompt = buildScorecardPrompt(scorecardCriteria);
+    } else {
+      // Fall back to legacy grading templates
+      const { data: template } = await supabase
+        .from("grading_templates")
+        .select("criteria_json")
+        .eq("org_id", orgId)
+        .eq("is_default", true)
+        .eq("is_active", true)
+        .single();
+
+      if (!template) {
+        return { success: false, error: "No active scorecard or grading template found" };
+      }
+
+      legacyCriteria = template.criteria_json as GradingCriterion[];
+      systemPrompt = buildAnalysisPrompt(legacyCriteria);
+    }
 
     // Call OpenAI
     const response = await openai.chat.completions.create({
@@ -160,11 +267,37 @@ export async function analyzeCall(
     let weightedSum = 0;
     let totalWeight = 0;
 
-    for (const result of analysisResults.gradingResults) {
-      const criterion = criteria.find((c) => c.id === result.criterionId);
-      if (criterion && result.score !== undefined) {
-        weightedSum += result.score * criterion.weight;
-        totalWeight += criterion.weight;
+    if (scorecardCriteria) {
+      // New scorecard system - use criteriaScores if available
+      const resultsWithCriteria = analysisResults as unknown as { criteriaScores?: Record<string, CriterionScoreResult> };
+      const criteriaScores = resultsWithCriteria.criteriaScores;
+      if (criteriaScores) {
+        for (const [id, data] of Object.entries(criteriaScores)) {
+          const criterion = scorecardCriteria.find((c) => c.id === id);
+          if (criterion && data.score !== undefined) {
+            const normalizedScore = (data.score / data.max_score) * 100;
+            weightedSum += normalizedScore * criterion.weight;
+            totalWeight += criterion.weight;
+          }
+        }
+      } else {
+        // Fallback to gradingResults
+        for (const result of analysisResults.gradingResults || []) {
+          const criterion = scorecardCriteria.find((c) => c.id === result.criterionId);
+          if (criterion && result.score !== undefined) {
+            weightedSum += result.score * criterion.weight;
+            totalWeight += criterion.weight;
+          }
+        }
+      }
+    } else if (legacyCriteria) {
+      // Legacy grading template system
+      for (const result of analysisResults.gradingResults || []) {
+        const criterion = legacyCriteria.find((c) => c.id === result.criterionId);
+        if (criterion && result.score !== undefined) {
+          weightedSum += result.score * criterion.weight;
+          totalWeight += criterion.weight;
+        }
       }
     }
 
@@ -182,6 +315,7 @@ export async function analyzeCall(
     return {
       success: true,
       analysis: analysisResults,
+      scorecard: scorecard || undefined,
       processingTimeMs,
       tokenUsage,
     };
@@ -251,8 +385,52 @@ export async function processQueuedCall(queueItemId: string): Promise<boolean> {
       throw new Error("Failed to save analysis");
     }
 
+    // Save call_score_results if scorecard was used
+    if (result.scorecard) {
+      const analysisWithCriteria = result.analysis as unknown as { criteriaScores?: Record<string, CriterionScoreResult> };
+      const criteriaScores = analysisWithCriteria.criteriaScores;
+      const scorecardCriteria = result.scorecard.criteria as ScorecardCriterion[];
+
+      // Calculate total and percentage scores
+      let totalScore = 0;
+      let maxPossibleScore = 0;
+
+      if (criteriaScores) {
+        for (const data of Object.values(criteriaScores)) {
+          totalScore += data.weighted_score || 0;
+          maxPossibleScore += data.weight || 0;
+        }
+      } else {
+        // Fallback calculation
+        for (const criterion of scorecardCriteria) {
+          maxPossibleScore += criterion.max_score * (criterion.weight / 100);
+        }
+        totalScore = (result.analysis.compositeScore / 100) * maxPossibleScore;
+      }
+
+      const percentageScore = maxPossibleScore > 0
+        ? (totalScore / maxPossibleScore) * 100
+        : result.analysis.compositeScore;
+
+      await supabase.from("call_score_results").insert({
+        call_id: call.id,
+        scorecard_id: result.scorecard.id,
+        org_id: call.org_id,
+        total_score: totalScore,
+        max_possible_score: maxPossibleScore,
+        percentage_score: percentageScore,
+        criteria_scores: criteriaScores || {},
+        summary: result.analysis.executiveSummary,
+        strengths: result.analysis.strengths || [],
+        improvements: result.analysis.improvements || [],
+        scored_by: "ai",
+        scorecard_version: result.scorecard.version,
+        scorecard_snapshot: scorecardCriteria,
+      });
+    }
+
     // Generate report
-    const report = generateReport(call, result.analysis);
+    const report = generateReport(call, result.analysis, result.scorecard);
 
     await supabase.from("reports").insert({
       call_id: call.id,
@@ -323,10 +501,49 @@ export async function processQueuedCall(queueItemId: string): Promise<boolean> {
 // Generate report from analysis
 function generateReport(
   call: { id: string; raw_notes: string; org_id: string },
-  analysis: AnalysisResults
+  analysis: AnalysisResults,
+  scorecard?: Scorecard
 ) {
+  const scorecardCriteria = scorecard?.criteria as ScorecardCriterion[] | undefined;
+  const analysisWithCriteria = analysis as unknown as { criteriaScores?: Record<string, CriterionScoreResult> };
+  const criteriaScores = analysisWithCriteria.criteriaScores;
+
+  // Build scorecard section with weights from scorecard if available
+  let scorecardSection;
+  if (scorecardCriteria && criteriaScores) {
+    scorecardSection = {
+      name: scorecard?.name || "Scorecard",
+      version: scorecard?.version || 1,
+      criteria: scorecardCriteria.map((c) => {
+        const score = criteriaScores[c.id];
+        return {
+          name: c.name,
+          score: score?.score || 0,
+          maxScore: c.max_score,
+          weight: c.weight,
+          weightedScore: score?.weighted_score || 0,
+          passed: score ? (score.score / score.max_score) >= 0.7 : false,
+        };
+      }),
+      finalScore: analysis.compositeScore,
+      passed: analysis.compositeScore >= 70,
+    };
+  } else {
+    // Legacy format
+    scorecardSection = {
+      criteria: (analysis.gradingResults || []).map((r) => ({
+        name: r.criterionName,
+        score: r.score || 0,
+        weight: 1,
+        passed: (r.score || 0) >= 70,
+      })),
+      finalScore: analysis.compositeScore,
+      passed: analysis.compositeScore >= 70,
+    };
+  }
+
   return {
-    version: "1.0",
+    version: "2.0",
     generatedAt: new Date().toISOString(),
     callSummary: {
       title: `Call Analysis`,
@@ -334,20 +551,11 @@ function generateReport(
       callerName: "Unknown", // Would be enriched from call data
     },
     analysis,
-    scorecard: {
-      criteria: analysis.gradingResults.map((r) => ({
-        name: r.criterionName,
-        score: r.score || 0,
-        weight: 1, // Would be enriched from grading config
-        passed: (r.score || 0) >= 70,
-      })),
-      finalScore: analysis.compositeScore,
-      passed: analysis.compositeScore >= 70,
-    },
+    scorecard: scorecardSection,
     coaching: {
-      topStrengths: analysis.strengths.slice(0, 3),
-      priorityImprovements: analysis.improvements.slice(0, 3),
-      actionPlan: analysis.recommendations.slice(0, 5),
+      topStrengths: (analysis.strengths || []).slice(0, 3),
+      priorityImprovements: (analysis.improvements || []).slice(0, 3),
+      actionPlan: (analysis.recommendations || []).slice(0, 5),
     },
   };
 }
