@@ -1,0 +1,5 @@
+# Lint check disabled for pre-push (CI will catch lint errors)
+# Uncomment below to enable: npm run lint -- --max-warnings=-1
+
+# Build the project to catch compile errors
+npm run build
