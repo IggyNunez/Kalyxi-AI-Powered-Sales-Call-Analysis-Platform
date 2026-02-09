@@ -10,9 +10,17 @@ import {
   CriterionScoreResult,
 } from "@/types/database";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to avoid build-time errors when OPENAI_API_KEY is not set
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openaiClient;
+}
 
 // Build dynamic prompt from grading criteria (legacy support)
 function buildAnalysisPrompt(criteria: GradingCriterion[]): string {
@@ -242,7 +250,7 @@ export async function analyzeCall(
     }
 
     // Call OpenAI
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model,
       messages: [
         { role: "system", content: systemPrompt },
