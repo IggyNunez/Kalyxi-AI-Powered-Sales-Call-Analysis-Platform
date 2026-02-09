@@ -366,7 +366,11 @@ export function Sidebar() {
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  onClick={() => signOut()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    signOut();
+                  }}
                   aria-label="Sign out"
                   className="flex w-full items-center justify-center rounded-xl p-2.5 text-gray-400 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400"
                 >
@@ -378,7 +382,11 @@ export function Sidebar() {
           ) : (
             <button
               type="button"
-              onClick={() => signOut()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                signOut();
+              }}
               className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-400 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400 group"
             >
               <LogOut className="h-5 w-5 transition-transform group-hover:-translate-x-1" />
