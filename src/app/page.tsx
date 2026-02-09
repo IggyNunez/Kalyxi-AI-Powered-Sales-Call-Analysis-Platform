@@ -5,6 +5,7 @@ import { Features } from "@/components/marketing/features";
 import { HowItWorks } from "@/components/marketing/how-it-works";
 import { WhoWeHelp } from "@/components/marketing/who-we-help";
 import { AIInsights } from "@/components/marketing/ai-insights";
+import { Testimonials } from "@/components/marketing/testimonials";
 import { Security } from "@/components/marketing/security";
 import { CTASection } from "@/components/marketing/cta-section";
 import { Footer } from "@/components/marketing/footer";
@@ -32,6 +33,9 @@ export default function HomePage() {
 
       {/* AI Insights Showcase - Sample report with Recharts */}
       <AIInsights />
+
+      {/* Customer Testimonials */}
+      <Testimonials />
 
       {/* Security / Trust - Enterprise features */}
       <Security />

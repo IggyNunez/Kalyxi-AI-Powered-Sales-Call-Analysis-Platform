@@ -1,9 +1,113 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, TrendingUp, MessageSquare, Target, Sparkles, BarChart2 } from "lucide-react";
+import { ArrowRight, TrendingUp, MessageSquare, Target, Sparkles, BarChart2, Play, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Video transcript
+const videoTranscript = `0:01: Hey everyone, my name is Mussa, and I am the co-founder of Web Rank Digital. We are a SAS solution to marketing services for small and medium sized businesses across the US, and I wanted to take a minute here to give a review for Kalyxi and their team and their product and service for our company and how it's essentially helped our sales team.
+
+0:26: Really get instant feedback for what we need to better our team's performance and really put everything into retrospect on how we can better our total organization when it comes to our sales and the feedback that we get.
+
+0:41: Just a little bit background about myself, I've been in sales for a little over a decade and I've been worked in multiple sales organizations, have my own sales organizations as well. And one of the missing pieces to really bettering our sales reps and us as in sales in general is having feedback that we can actually deploy and use to become better and see where we went wrong and, and also use that to really become the the team that allows the numbers to be broken in terms of feedback and how we can use that retroactively.
+
+1:20: When it comes to Kalyxi and their team, they are amazing in terms of communication from start to finish on explaining what exactly the system can do, how it can be integrated into our systems, how it can work for us and help our team. We've been able to really track from the pilot program and the calibration stage and the feedback that it gives to our sales managers and the feedback it gives to our individual sales reps and how that can help them really not only earn more money but become better as a rep here in our organization.
+
+1:56: Now, if you're looking for a solution that can help your team, that can help your company, that can really give you the data that you need, at live and also instant feedback, this is the company to work with. I very rarely see AI solutions that can really do a difference when it comes to the numbers, and this is one that can.
+
+2:21: Firsthand from our management on top to our VP of sales to our sales managers and the reps themselves, they love the feedback. It works exactly how we need it and the team's always there to make sure that we have all the support that we need. The pricing is very competitive. It makes a lot of sense in terms of the value that it provides.
+
+2:40: As you can see you really get all the information on your own dashboard you have support with the team and it helps quite a bit when it comes to really having that information not only readily available but instant feedback for your team on anything to do with how their sales process is going. What exactly the benchmarks are, what you're looking to improve on, and really help not only management but your team become better sales people.
+
+3:09: So if you are looking for a solution, book a call with them. Ignacio, Christian, Rex over there, they're really good at what they're doing. They know exactly how to help you guys. They know exactly how to integrate it into your systems. They're very transparent about how they're setting everything up, and they can provide a white glove service for you just like they did for us. Kalyxi is where it is. Go ahead and book a call. Love them 100%. Take care.`;
+
+// Video Demo Modal Component
+function VideoModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [showTranscript, setShowTranscript] = useState(false);
+
+  const handleClose = () => {
+    setShowTranscript(false);
+    onClose();
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-fade-in"
+        onClick={handleClose}
+      />
+
+      {/* Modal Content */}
+      <div className="relative w-full max-w-5xl animate-scale-in max-h-[90vh] flex flex-col">
+        {/* Close Button */}
+        <button
+          type="button"
+          onClick={handleClose}
+          className="absolute -top-12 right-0 p-2 text-white/80 hover:text-white transition-colors"
+          aria-label="Close video"
+        >
+          <X className="w-8 h-8" />
+        </button>
+
+        {/* Video Container */}
+        <div className="relative w-full aspect-video bg-gray-900 rounded-t-2xl overflow-hidden shadow-2xl shrink-0">
+          <video
+            src="/demo-video.mp4"
+            title="Kalyxi Demo Video"
+            className="absolute inset-0 w-full h-full object-cover"
+            controls
+            autoPlay
+            playsInline
+          />
+        </div>
+
+        {/* Transcript Toggle & Content */}
+        <div className="bg-gray-900 rounded-b-2xl">
+          <button
+            type="button"
+            onClick={() => setShowTranscript(!showTranscript)}
+            className="w-full px-4 py-3 flex items-center justify-between text-white/80 hover:text-white transition-colors border-t border-white/10"
+          >
+            <span className="text-sm font-medium flex items-center gap-2">
+              <MessageSquare className="w-4 h-4" />
+              {showTranscript ? "Hide Transcript" : "Show Transcript"}
+            </span>
+            <svg
+              className={cn("w-5 h-5 transition-transform", showTranscript && "rotate-180")}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {showTranscript && (
+            <div className="px-4 pb-4 h-56 overflow-y-scroll scrollbar-thin">
+              <p className="text-sm text-gray-300 whitespace-pre-line leading-relaxed">
+                {videoTranscript}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Floating UI Card Components
 function ScoreCard() {
@@ -100,6 +204,7 @@ function ActionsCard() {
 
 export function Hero() {
   const heroRef = useRef<HTMLDivElement>(null);
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -115,6 +220,13 @@ export function Hero() {
 
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
+  // Listen for custom event to open video from other components
+  useEffect(() => {
+    const handleOpenVideo = () => setIsVideoOpen(true);
+    window.addEventListener("openDemoVideo", handleOpenVideo);
+    return () => window.removeEventListener("openDemoVideo", handleOpenVideo);
   }, []);
 
   return (
@@ -171,7 +283,7 @@ export function Hero() {
               specific action items your team can use immediately.
             </p>
 
-            {/* Single CTA */}
+            {/* CTAs */}
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-10 animate-fade-in-up animation-delay-200">
               <Link
                 href="/register"
@@ -184,6 +296,18 @@ export function Hero() {
                 {/* Shine effect */}
                 <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
               </Link>
+              <button
+                type="button"
+                onClick={() => setIsVideoOpen(true)}
+                className="group w-full sm:w-auto px-8 py-4 text-base font-semibold text-gray-700 rounded-xl bg-white border border-gray-200 shadow-lg hover:shadow-xl hover:border-purple-200 hover:-translate-y-0.5 transition-all duration-300"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <span className="relative flex items-center justify-center w-8 h-8 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full shadow-md group-hover:scale-110 transition-transform">
+                    <Play className="w-4 h-4 text-white ml-0.5" fill="white" />
+                  </span>
+                  Watch Demo
+                </span>
+              </button>
             </div>
 
             {/* Value props instead of fake logos */}
@@ -258,6 +382,9 @@ export function Hero() {
 
       {/* Bottom fade */}
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white to-transparent" />
+
+      {/* Video Modal */}
+      <VideoModal isOpen={isVideoOpen} onClose={() => setIsVideoOpen(false)} />
     </section>
   );
 }
