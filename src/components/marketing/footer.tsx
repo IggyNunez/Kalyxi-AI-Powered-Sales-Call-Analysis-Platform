@@ -8,27 +8,24 @@ const footerLinks = {
   product: {
     title: "Product",
     links: [
-      { name: "Features", href: "#features" },
-      { name: "How It Works", href: "#how-it-works" },
-      { name: "AI Insights", href: "#insights" },
-      { name: "Security", href: "#security" },
+      { name: "Features", href: "/#features" },
+      { name: "How It Works", href: "/#how-it-works" },
+      { name: "AI Insights", href: "/#insights" },
+      { name: "Security", href: "/#security" },
     ],
   },
   company: {
     title: "Company",
     links: [
-      { name: "About", href: "/about" },
-      { name: "Blog", href: "/blog" },
-      { name: "Careers", href: "/careers" },
-      { name: "Contact", href: "/contact" },
+      { name: "About Us", href: "/#who-we-help" },
+      { name: "Contact", href: "mailto:hello@kalyxi.ai" },
     ],
   },
   resources: {
     title: "Resources",
     links: [
-      { name: "Documentation", href: "/docs" },
-      { name: "Help Center", href: "/help" },
-      { name: "API Reference", href: "/docs/api" },
+      { name: "Get Started", href: "/register" },
+      { name: "Sign In", href: "/login" },
     ],
   },
   legal: {
@@ -42,8 +39,8 @@ const footerLinks = {
 };
 
 const socialLinks = [
-  { name: "Twitter", icon: Twitter, href: "#" },
-  { name: "LinkedIn", icon: Linkedin, href: "#" },
+  { name: "Twitter", icon: Twitter, href: "https://twitter.com/kalyxi_ai" },
+  { name: "LinkedIn", icon: Linkedin, href: "https://linkedin.com/company/kalyxi" },
   { name: "Email", icon: Mail, href: "mailto:hello@kalyxi.ai" },
 ];
 
