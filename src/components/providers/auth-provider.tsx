@@ -117,7 +117,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      // Clear local state immediately
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      setOrganization(null);
+
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        console.error("Sign out error:", error);
+      }
+
+      // Force redirect to login page
+      window.location.href = "/login";
+    } catch (error) {
+      console.error("Sign out error:", error);
+      // Force redirect even on error
+      window.location.href = "/login";
+    }
   };
 
   const role = profile?.role as UserRole | null;
