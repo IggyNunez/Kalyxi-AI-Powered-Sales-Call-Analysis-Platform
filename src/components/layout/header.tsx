@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search, ChevronDown, Settings, User, LogOut, Sparkles, Menu, Command } from "lucide-react";
+import { Bell, Search, ChevronDown, Settings, User, LogOut, Sparkles, Menu } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ export function Header() {
 
   // Prevent hydration mismatch with Radix UI dropdowns
   useEffect(() => {
-    setMounted(true);
+    setMounted(true); // eslint-disable-line react-hooks/set-state-in-effect
   }, []);
 
   // Handle Cmd/Ctrl + K for search

@@ -1,9 +1,12 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 import { test as base, expect, Page } from "@playwright/test";
 
 /**
  * Kalyxi AI - E2E Test Fixtures
  *
  * Provides authenticated page contexts and helper functions for E2E tests.
+ * Note: ESLint react-hooks rule is disabled because Playwright's `use()` function
+ * is incorrectly detected as React's `use` hook.
  */
 
 // Test user credentials (from deterministic seed)
