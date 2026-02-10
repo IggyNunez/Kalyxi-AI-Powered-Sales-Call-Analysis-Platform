@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { syncUserTranscripts } from "@/lib/google/sync-engine";
 import { validateAndSanitizeUUID, sanitizeUUID } from "@/lib/api-utils";
 
@@ -34,7 +34,9 @@ export async function POST(request: Request) {
     const userId = sanitizeUUID(authUser.id);
 
     // Check if user has a profile in public.users (required for sync_logs foreign key)
-    const { data: userProfile, error: profileError } = await supabase
+    // Use admin client to bypass RLS policies
+    const adminSupabase = createAdminClient();
+    const { data: userProfile, error: profileError } = await adminSupabase
       .from("users")
       .select("id")
       .eq("id", userId)
