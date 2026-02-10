@@ -59,14 +59,25 @@ export async function getCurrentUser(): Promise<{
 
 // Require authentication
 export async function requireAuth() {
-  const { user, orgId, role } = await getCurrentUser();
+  const { user, orgId, role, error } = await getCurrentUser();
 
   if (!user || !orgId) {
+    // Check if user is authenticated but missing profile
+    const isProfileMissing = error?.includes("profile not found");
     return {
       user: null,
       orgId: null,
       role: null,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      response: NextResponse.json(
+        {
+          error: isProfileMissing ? "Profile Required" : "Unauthorized",
+          message: isProfileMissing
+            ? "Your user profile is not set up. Please refresh the page to complete setup."
+            : "You must be logged in",
+          code: isProfileMissing ? "PROFILE_MISSING" : "UNAUTHORIZED",
+        },
+        { status: isProfileMissing ? 403 : 401 }
+      ),
     };
   }
 

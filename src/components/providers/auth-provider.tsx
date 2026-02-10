@@ -74,6 +74,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from("users")
           .update({ last_login_at: new Date().toISOString() })
           .eq("id", sanitizedUserId);
+      } else {
+        // User profile doesn't exist - auto-create via API
+        // This handles users who signed in via OAuth but never completed registration
+        console.log("User profile not found, attempting auto-creation...");
+        try {
+          const authUser = await supabase.auth.getUser();
+          if (authUser.data.user) {
+            const response = await fetch("/api/auth/auto-setup", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: sanitizedUserId,
+                email: authUser.data.user.email,
+                name: authUser.data.user.user_metadata?.name ||
+                      authUser.data.user.user_metadata?.full_name ||
+                      authUser.data.user.email?.split("@")[0] || "User",
+              }),
+            });
+
+            if (response.ok) {
+              // Retry fetching profile after creation
+              const { data: newProfile } = await supabase
+                .from("users")
+                .select("*")
+                .eq("id", sanitizedUserId)
+                .maybeSingle();
+
+              if (newProfile) {
+                setProfile(newProfile as User);
+
+                const { data: newOrg } = await supabase
+                  .from("organizations")
+                  .select("*")
+                  .eq("id", newProfile.org_id)
+                  .maybeSingle();
+
+                if (newOrg) {
+                  setOrganization(newOrg as Organization);
+                }
+              }
+            } else {
+              console.error("Failed to auto-create user profile");
+            }
+          }
+        } catch (autoCreateError) {
+          console.error("Auto-create user profile error:", autoCreateError);
+        }
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
