@@ -131,14 +131,13 @@ export async function getGoogleConnection(
     .from("google_connections")
     .select("*")
     .eq("id", validConnectionId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") return null;
     throw new Error(`Failed to get Google connection: ${error.message}`);
   }
 
-  return data as GoogleConnection;
+  return data as GoogleConnection | null;
 }
 
 /**
@@ -443,14 +442,13 @@ export async function getTranscriptById(
     .select("*")
     .eq("id", transcriptId)
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") return null;
     throw new Error(`Failed to get transcript: ${error.message}`);
   }
 
-  return data as MeetTranscript;
+  return data as MeetTranscript | null;
 }
 
 /**
@@ -562,7 +560,7 @@ export async function validateExtensionToken(
     .from("extension_tokens")
     .select("id, user_id, expires_at, revoked_at, use_count")
     .eq("token_hash", tokenHash)
-    .single();
+    .maybeSingle();
 
   if (error || !data) {
     return null;

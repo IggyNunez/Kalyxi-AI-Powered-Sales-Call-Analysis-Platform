@@ -69,9 +69,13 @@ export async function getValidAccessToken(connectionId: string): Promise<string>
     .from("google_connections")
     .select("*")
     .eq("id", validConnectionId)
-    .single();
+    .maybeSingle();
 
-  if (error || !connection) {
+  if (error) {
+    throw new Error(`Failed to fetch Google connection: ${error.message}`);
+  }
+
+  if (!connection) {
     throw new Error(`Google connection not found: ${connectionId}`);
   }
 
@@ -204,9 +208,13 @@ export async function validateConnection(connectionId: string): Promise<{
     .from("google_connections")
     .select("token_expiry, refresh_token_encrypted")
     .eq("id", validConnectionId)
-    .single();
+    .maybeSingle();
 
-  if (error || !connection) {
+  if (error) {
+    return { valid: false, error: `Database error: ${error.message}` };
+  }
+
+  if (!connection) {
     return { valid: false, error: "Connection not found" };
   }
 
