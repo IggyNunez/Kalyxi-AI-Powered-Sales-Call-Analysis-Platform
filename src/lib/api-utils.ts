@@ -28,10 +28,13 @@ export async function getCurrentUser(): Promise<{
       return { user: null, orgId: null, role: null };
     }
 
+    // Sanitize userId to remove any potential :1 suffix from Supabase
+    const sanitizedUserId = sanitizeUUID(authUser.id);
+
     const { data: user, error: userError } = await supabase
       .from("users")
       .select("*")
-      .eq("id", authUser.id)
+      .eq("id", sanitizedUserId)
       .single();
 
     if (userError || !user) {
