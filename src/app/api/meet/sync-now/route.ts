@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { syncUserTranscripts } from "@/lib/google/sync-engine";
-import { validateAndSanitizeUUID, isValidUUID, sanitizeUUID } from "@/lib/api-utils";
+import { validateAndSanitizeUUID, sanitizeUUID } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // Allow up to 60 seconds for sync
@@ -18,11 +18,11 @@ export async function POST(request: Request) {
     // Get authenticated user
     const supabase = await createClient();
     const {
-      data: { user },
+      data: { user: authUser },
       error: authError,
     } = await supabase.auth.getUser();
 
-    if (authError || !user) {
+    if (authError || !authUser) {
       console.error("[Sync Now] Auth error:", authError?.message || "No user");
       return NextResponse.json(
         { error: "Unauthorized", message: "You must be logged in" },
@@ -30,13 +30,33 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate and sanitize user ID (handles potential :1 suffix from Supabase)
-    const userId = sanitizeUUID(user.id);
-    if (!isValidUUID(userId)) {
-      console.error("[Sync Now] Invalid user ID from auth:", user.id);
+    // Sanitize user ID
+    const userId = sanitizeUUID(authUser.id);
+
+    // Check if user has a profile in public.users (required for sync_logs foreign key)
+    const { data: userProfile, error: profileError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("[Sync Now] Error checking user profile:", profileError);
       return NextResponse.json(
-        { error: "Unauthorized", message: "Invalid user session" },
-        { status: 401 }
+        { error: "Server Error", message: "Failed to verify user profile" },
+        { status: 500 }
+      );
+    }
+
+    if (!userProfile) {
+      console.error("[Sync Now] User profile not found for:", userId);
+      return NextResponse.json(
+        {
+          error: "Profile Required",
+          message: "Your user profile is not set up. Please refresh the page to complete setup.",
+          code: "PROFILE_MISSING"
+        },
+        { status: 403 }
       );
     }
 
