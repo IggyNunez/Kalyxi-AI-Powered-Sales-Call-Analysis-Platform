@@ -105,13 +105,22 @@ export async function POST(request: Request) {
 
     // Log the sync attempt for debugging
     console.log("[Sync Now] Starting sync for user:", userId, "connection:", connectionId || "all");
+    console.log("[Sync Now] User profile found:", userProfile.id);
 
-    // Sync transcripts
-    const results = await syncUserTranscripts(userId, {
-      connectionId,
-      windowHours,
-      maxConferences,
-    });
+    // Sync transcripts with detailed error logging
+    let results;
+    try {
+      results = await syncUserTranscripts(userId, {
+        connectionId,
+        windowHours,
+        maxConferences,
+      });
+      console.log("[Sync Now] Sync completed, results count:", results.length);
+    } catch (syncError) {
+      console.error("[Sync Now] syncUserTranscripts failed:", syncError);
+      console.error("[Sync Now] Error stack:", syncError instanceof Error ? syncError.stack : "No stack");
+      throw syncError;
+    }
 
     // Calculate summary
     const totalConferences = results.reduce((sum, r) => sum + r.conferencesChecked, 0);

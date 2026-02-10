@@ -57,12 +57,21 @@ export async function syncConnectionTranscripts(
     newTranscripts: [],
   };
 
+  console.log("[SyncEngine] syncConnectionTranscripts for connection:", connection.id, "user:", connection.user_id);
+
   // Create sync log
-  const logId = await createSyncLog(
-    connection.id,
-    connection.user_id,
-    meetingCode ? "push" : "manual"
-  );
+  let logId: string;
+  try {
+    logId = await createSyncLog(
+      connection.id,
+      connection.user_id,
+      meetingCode ? "push" : "manual"
+    );
+    console.log("[SyncEngine] Sync log created:", logId);
+  } catch (logError) {
+    console.error("[SyncEngine] Failed to create sync log:", logError);
+    throw logError;
+  }
 
   try {
     // Get valid access token (handles refresh if needed)
@@ -252,10 +261,12 @@ export async function syncUserTranscripts(
   userId: string,
   options: SyncOptions = {}
 ): Promise<SyncResult[]> {
+  console.log("[SyncEngine] syncUserTranscripts called for user:", userId);
   const results: SyncResult[] = [];
 
   if (options.connectionId) {
     // Sync specific connection
+    console.log("[SyncEngine] Syncing specific connection:", options.connectionId);
     const connection = await getGoogleConnection(options.connectionId);
 
     if (!connection) {
@@ -270,8 +281,10 @@ export async function syncUserTranscripts(
     results.push(result);
   } else {
     // Sync all user connections
+    console.log("[SyncEngine] Syncing all connections for user");
     const { listUserGoogleConnections } = await import("./storage");
     const connections = await listUserGoogleConnections(userId);
+    console.log("[SyncEngine] Found", connections.length, "connections");
 
     if (connections.length === 0) {
       // No connections to sync - return empty results (not an error)
