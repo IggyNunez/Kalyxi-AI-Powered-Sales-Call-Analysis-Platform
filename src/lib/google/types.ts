@@ -1,9 +1,12 @@
 /**
  * Google Meet and Docs API TypeScript Types
- * Server-only types for Google API responses
+ * Types for OAuth connections, Meet API, Docs API, and database models.
  */
 
-// ===== Service Account =====
+// ============================================================================
+// SERVICE ACCOUNT (for domain-wide delegation - enterprise mode)
+// ============================================================================
+
 export interface GoogleServiceAccountCredentials {
   type: string;
   project_id: string;
@@ -18,7 +21,236 @@ export interface GoogleServiceAccountCredentials {
   universe_domain?: string;
 }
 
-// ===== Meet API Types =====
+// ============================================================================
+// DATABASE MODELS
+// ============================================================================
+
+/**
+ * Google OAuth connection stored in database
+ */
+export interface GoogleConnection {
+  id: string;
+  user_id: string;
+  google_email: string;
+  google_user_id: string | null;
+  access_token: string;
+  refresh_token_encrypted: string;
+  refresh_token_iv: string;
+  refresh_token_tag: string;
+  token_expiry: string;
+  scopes: string[];
+  last_sync_at: string | null;
+  last_sync_error: string | null;
+  sync_cursor: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Google connection for client display (no sensitive tokens)
+ */
+export interface GoogleConnectionPublic {
+  id: string;
+  google_email: string;
+  scopes: string[];
+  last_sync_at: string | null;
+  last_sync_error: string | null;
+  created_at: string;
+  is_token_valid: boolean;
+}
+
+/**
+ * Meet transcript stored in database
+ */
+export interface MeetTranscript {
+  id: string;
+  user_id: string;
+  connection_id: string;
+  meeting_code: string;
+  conference_record_name: string;
+  transcript_name: string;
+  transcript_state: TranscriptState;
+  docs_document_id: string | null;
+  text_content: string;
+  text_source: "docs" | "entries";
+  entries_count: number;
+  meeting_start_time: string | null;
+  meeting_end_time: string | null;
+  meeting_space_name: string | null;
+  participants: Participant[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Extension API token stored in database
+ */
+export interface ExtensionToken {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  token_prefix: string;
+  name: string;
+  last_used_at: string | null;
+  use_count: number;
+  created_at: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+}
+
+/**
+ * Extension token for client display
+ */
+export interface ExtensionTokenPublic {
+  id: string;
+  token_prefix: string;
+  name: string;
+  last_used_at: string | null;
+  use_count: number;
+  created_at: string;
+  expires_at: string | null;
+  is_active: boolean;
+}
+
+/**
+ * Sync log entry
+ */
+export interface SyncLog {
+  id: string;
+  connection_id: string | null;
+  user_id: string | null;
+  sync_type: "cron" | "manual" | "push";
+  status: "started" | "completed" | "failed";
+  conferences_checked: number;
+  transcripts_fetched: number;
+  transcripts_saved: number;
+  error_message: string | null;
+  error_details: Record<string, unknown> | null;
+  started_at: string;
+  completed_at: string | null;
+  duration_ms: number | null;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Meeting participant
+ */
+export interface Participant {
+  name?: string;
+  email?: string;
+  participantId?: string;
+}
+
+// ============================================================================
+// OAUTH TYPES
+// ============================================================================
+
+/**
+ * OAuth state payload (signed with HMAC)
+ */
+export interface OAuthStatePayload {
+  userId: string;
+  nonce: string;
+  timestamp: number;
+  redirectUrl?: string;
+}
+
+/**
+ * Google OAuth token response
+ */
+export interface GoogleTokenResponse {
+  access_token: string;
+  expires_in: number;
+  refresh_token?: string;
+  scope: string;
+  token_type: string;
+  id_token?: string;
+}
+
+/**
+ * Google user info from OAuth
+ */
+export interface GoogleUserInfo {
+  id: string;
+  sub?: string; // OpenID Connect subject identifier (same as id)
+  email: string;
+  verified_email: boolean;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+  picture?: string;
+}
+
+/**
+ * Encrypted token payload
+ */
+export interface EncryptedToken {
+  ciphertext: string;
+  iv: string;
+  tag: string;
+}
+
+// ============================================================================
+// SYNC TYPES
+// ============================================================================
+
+export interface SyncResult {
+  success: boolean;
+  connectionId: string;
+  conferencesChecked: number;
+  transcriptsFetched: number;
+  transcriptsSaved: number;
+  errors: string[];
+  newTranscripts: string[];
+}
+
+export interface TranscriptFetchResult {
+  conferenceRecord: ConferenceRecord;
+  transcript: Transcript;
+  text: string;
+  textSource: "docs" | "entries";
+  entriesCount: number;
+}
+
+export interface SaveTranscriptInput {
+  userId: string;
+  connectionId: string;
+  meetingCode: string;
+  conferenceRecordName: string;
+  transcriptName: string;
+  transcriptState: TranscriptState;
+  docsDocumentId?: string;
+  textContent: string;
+  textSource: "docs" | "entries";
+  entriesCount?: number;
+  meetingStartTime?: string;
+  meetingEndTime?: string;
+  meetingSpaceName?: string;
+  participants?: Participant[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateConnectionInput {
+  userId: string;
+  googleEmail: string;
+  googleUserId?: string;
+  accessToken: string;
+  refreshToken: string;
+  tokenExpiry: Date;
+  scopes: string[];
+}
+
+export interface SyncOptions {
+  connectionId?: string;
+  meetingCode?: string;
+  windowHours?: number;
+  maxConferences?: number;
+}
+
+// ============================================================================
+// MEET API TYPES
+// ============================================================================
 
 export type TranscriptState =
   | "STATE_UNSPECIFIED"
@@ -26,20 +258,27 @@ export type TranscriptState =
   | "ENDED"
   | "FILE_GENERATED";
 
+export interface Space {
+  name: string;
+  meetingUri: string;
+  meetingCode: string;
+  config?: {
+    accessType?: string;
+    entryPointAccess?: string;
+  };
+}
+
 export interface ConferenceRecord {
   name: string; // e.g., "conferenceRecords/abc123"
   startTime: string; // RFC 3339 timestamp
   endTime?: string; // RFC 3339 timestamp
   expireTime?: string; // RFC 3339 timestamp
-  space?: {
-    name: string;
-    meetingUri: string;
-    meetingCode: string;
-    config?: {
-      accessType?: string;
-      entryPointAccess?: string;
-    };
-  };
+  space?: Space;
+}
+
+export interface DocsDestination {
+  document: string;
+  exportUri: string;
 }
 
 export interface ListConferenceRecordsResponse {
@@ -52,10 +291,7 @@ export interface Transcript {
   state: TranscriptState;
   startTime?: string;
   endTime?: string;
-  docsDestination?: {
-    document: string; // Google Docs document ID
-    exportUri: string; // URI to export the transcript
-  };
+  docsDestination?: DocsDestination;
 }
 
 export interface ListTranscriptsResponse {

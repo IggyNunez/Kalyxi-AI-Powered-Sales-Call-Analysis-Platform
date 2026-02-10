@@ -3,12 +3,12 @@
  *
  * Server-only client for fetching and parsing Google Docs documents.
  * Used to retrieve the formatted transcript from Google Meet.
+ * Supports OAuth tokens for user authentication.
  *
  * API Reference: https://developers.google.com/docs/api/reference/rest
  */
 
 import "server-only";
-import { getGoogleAccessToken } from "./auth";
 import type {
   GoogleDocsDocument,
   Paragraph,
@@ -34,13 +34,16 @@ export class DocsAPIError extends Error {
 
 /**
  * Make an authenticated request to the Docs API
+ *
+ * @param accessToken - OAuth access token
+ * @param endpoint - API endpoint
+ * @param options - Fetch options
  */
 async function docsFetch<T>(
+  accessToken: string,
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const accessToken = await getGoogleAccessToken();
-
   const url = endpoint.startsWith("http")
     ? endpoint
     : `${DOCS_API_BASE}${endpoint}`;
@@ -72,12 +75,11 @@ async function docsFetch<T>(
         break;
       case 401:
         suggestion =
-          "Authentication failed. Verify service account credentials.";
+          "Authentication failed. The access token may be expired or invalid.";
         break;
       case 403:
         suggestion =
-          "Permission denied. The impersonated user may not have access to this document, " +
-          "or the documents.readonly scope is not authorized in domain-wide delegation.";
+          "Permission denied. The user may not have access to this document.";
         break;
       case 404:
         suggestion =
@@ -95,27 +97,12 @@ async function docsFetch<T>(
 }
 
 /**
- * Fetch a Google Docs document by its ID.
- *
- * @param documentId - The document ID (from the docsDestination in transcript)
- * @returns The full document structure
- */
-export async function getDocument(
-  documentId: string
-): Promise<GoogleDocsDocument> {
-  // Extract document ID if a full URL was passed
-  const id = extractDocumentId(documentId);
-
-  return docsFetch<GoogleDocsDocument>(`/documents/${id}`);
-}
-
-/**
  * Extract document ID from various formats:
  * - Raw ID: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
- * - Full URL: "https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
- * - Docs destination format: "documents/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+ * - Full URL: "https://docs.google.com/document/d/1BxiMVs.../edit"
+ * - Docs destination format: "documents/1BxiMVs..."
  */
-function extractDocumentId(input: string): string {
+export function extractDocumentId(input: string): string {
   // If it's a URL, extract the ID from the path
   if (input.includes("docs.google.com/document/d/")) {
     const match = input.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
@@ -131,6 +118,21 @@ function extractDocumentId(input: string): string {
 
   // Otherwise, assume it's already a raw document ID
   return input;
+}
+
+/**
+ * Fetch a Google Docs document by its ID.
+ *
+ * @param accessToken - OAuth access token
+ * @param documentId - The document ID (from the docsDestination in transcript)
+ * @returns The full document structure
+ */
+export async function getDocument(
+  accessToken: string,
+  documentId: string
+): Promise<GoogleDocsDocument> {
+  const id = extractDocumentId(documentId);
+  return docsFetch<GoogleDocsDocument>(accessToken, `/documents/${id}`);
 }
 
 /**
@@ -246,16 +248,20 @@ function extractTextFromParagraphElement(element: ParagraphElement): string {
  *
  * This is a convenience function that combines getDocument and docToPlainText.
  *
+ * @param accessToken - OAuth access token
  * @param documentId - The document ID or URL
  * @returns Object with document metadata and plain text
  */
-export async function fetchTranscriptAsPlainText(documentId: string): Promise<{
+export async function fetchTranscriptAsPlainText(
+  accessToken: string,
+  documentId: string
+): Promise<{
   documentId: string;
   title: string;
   text: string;
   revisionId?: string;
 }> {
-  const document = await getDocument(documentId);
+  const document = await getDocument(accessToken, documentId);
 
   return {
     documentId: document.documentId,
@@ -269,16 +275,20 @@ export async function fetchTranscriptAsPlainText(documentId: string): Promise<{
  * Get basic document metadata without fetching the full content.
  * Useful for checking if a document exists and is accessible.
  *
+ * @param accessToken - OAuth access token
  * @param documentId - The document ID
  * @returns Document title and ID
  */
-export async function getDocumentMetadata(documentId: string): Promise<{
+export async function getDocumentMetadata(
+  accessToken: string,
+  documentId: string
+): Promise<{
   documentId: string;
   title: string;
   exists: boolean;
 }> {
   try {
-    const document = await getDocument(documentId);
+    const document = await getDocument(accessToken, documentId);
     return {
       documentId: document.documentId,
       title: document.title,

@@ -1,33 +1,47 @@
 /**
  * Google Meet Transcript Integration
  *
- * Server-only exports for Google Meet and Docs API integration.
+ * Server-only exports for Google Meet OAuth and transcript sync.
  *
  * Usage:
- *   import { getGoogleAccessToken, findBestTranscript } from '@/lib/google';
+ *   import { buildGoogleAuthUrl, syncMeetingByCode } from '@/lib/google';
  *
  * All exports are server-only and will cause a build error if imported
  * from client components.
  */
 
-// Re-export authentication utilities
+// Re-export OAuth utilities
 export {
-  getGoogleAccessToken,
-  getJwtClient,
-  clearAuthCache,
-  getServiceAccountEmail,
-  validateConfiguration,
-} from "./auth";
+  buildGoogleAuthUrl,
+  exchangeCodeForTokens,
+  refreshAccessToken,
+  fetchGoogleUserInfo,
+  signState,
+  verifySignedState,
+  getOAuthConfig,
+} from "./oauth";
+
+// Re-export token management
+export {
+  getValidAccessToken,
+  validateConnection,
+  isTokenExpired,
+} from "./tokens";
 
 // Re-export Meet API client
 export {
+  listConferenceRecordsRecent,
   listConferenceRecordsByMeetingCode,
   listTranscripts,
   listTranscriptEntries,
   getTranscript,
   getConferenceRecord,
   findBestTranscript,
+  findBestTranscriptForConference,
   entriesToPlainText,
+  getMeetingCode,
+  hasEnded,
+  filterEndedConferences,
   MeetAPIError,
 } from "./meet-client";
 
@@ -37,12 +51,63 @@ export {
   docToPlainText,
   fetchTranscriptAsPlainText,
   getDocumentMetadata,
+  extractDocumentId,
   DocsAPIError,
 } from "./docs-client";
 
-// Re-export types (these are safe for client-side, but most usage is server-side)
+// Re-export sync engine
+export {
+  syncConnectionTranscripts,
+  syncUserTranscripts,
+  syncMeetingByCode,
+} from "./sync-engine";
+
+// Re-export storage utilities
+export {
+  // Connections
+  createOrUpdateGoogleConnection,
+  getGoogleConnection,
+  getDecryptedRefreshToken,
+  listUserGoogleConnections,
+  deleteGoogleConnection,
+  updateConnectionTokens,
+  updateSyncStatus,
+  getAllGoogleConnections,
+  // Transcripts
+  saveTranscript,
+  transcriptExists,
+  listTranscripts as listStoredTranscripts,
+  getTranscriptById,
+  deleteTranscript,
+  // Extension tokens
+  createExtensionToken,
+  validateExtensionToken,
+  listExtensionTokens,
+  revokeExtensionToken,
+  // Sync logs
+  createSyncLog,
+  updateSyncLog,
+} from "./storage";
+
+// Re-export crypto utilities
+export { encryptToken, decryptToken } from "./crypto";
+
+// Re-export types
 export type {
-  GoogleServiceAccountCredentials,
+  // OAuth types
+  GoogleConnection,
+  GoogleConnectionPublic,
+  MeetTranscript,
+  ExtensionToken,
+  ExtensionTokenPublic,
+  OAuthStatePayload,
+  GoogleTokenResponse,
+  GoogleUserInfo,
+  CreateConnectionInput,
+  SaveTranscriptInput,
+  SyncOptions,
+  SyncResult,
+  // Meet API types
   ConferenceRecord,
   ListConferenceRecordsResponse,
   Transcript,
@@ -50,19 +115,21 @@ export type {
   ListTranscriptsResponse,
   TranscriptEntry,
   ListTranscriptEntriesResponse,
+  // Docs API types
   GoogleDocsDocument,
-  TranscriptAPIResponse,
-  TranscriptRequestBody,
+  StructuralElement,
+  Paragraph,
+  ParagraphElement,
 } from "./types";
 
-// Re-export optional storage utilities
+// Legacy exports for backwards compatibility
+// These use domain-wide delegation (service account auth)
 export {
-  saveTranscript,
-  getTranscriptByMeetingCode,
-  listTranscripts as listStoredTranscripts,
-  deleteTranscript,
-  searchTranscripts,
-  isStorageEnabled,
-} from "./storage";
+  getGoogleAccessToken,
+  getJwtClient,
+  clearAuthCache,
+  getServiceAccountEmail,
+  validateConfiguration,
+} from "./auth";
 
-export type { StoredTranscript, SaveTranscriptInput } from "./storage";
+export type { GoogleServiceAccountCredentials } from "./types";

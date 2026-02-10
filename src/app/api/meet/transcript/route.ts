@@ -34,7 +34,7 @@ import {
   fetchTranscriptAsPlainText,
   DocsAPIError,
 } from "@/lib/google/docs-client";
-import { validateConfiguration } from "@/lib/google/auth";
+import { validateConfiguration, getGoogleAccessToken } from "@/lib/google/auth";
 import type {
   TranscriptAPIResponse,
   TranscriptRequestBody,
@@ -114,8 +114,11 @@ export async function POST(
   const warnings: string[] = [];
 
   try {
+    // Get access token from service account
+    const accessToken = await getGoogleAccessToken();
+
     // Find the best transcript for this meeting
-    const result = await findBestTranscript(meetingCode);
+    const result = await findBestTranscript(accessToken, meetingCode);
 
     // Handle case where no conference records found
     if (result.status === "not_found") {
@@ -167,6 +170,7 @@ export async function POST(
       // Preferred: Fetch from Google Docs (higher quality, formatted)
       try {
         const docsResult = await fetchTranscriptAsPlainText(
+          accessToken,
           transcript.docsDestination.document
         );
         text = docsResult.text;
@@ -179,14 +183,14 @@ export async function POST(
           `Failed to fetch Google Docs transcript: ${docsError instanceof Error ? docsError.message : "Unknown error"}. Falling back to entries.`
         );
 
-        const entries = await listTranscriptEntries(transcript.name);
+        const entries = await listTranscriptEntries(accessToken, transcript.name);
         text = entriesToPlainText(entries);
         entriesCount = entries.length;
       }
     } else {
       // Fallback or explicit preference: Fetch transcript entries directly
       try {
-        const entries = await listTranscriptEntries(transcript.name);
+        const entries = await listTranscriptEntries(accessToken, transcript.name);
         text = entriesToPlainText(entries);
         entriesCount = entries.length;
 
