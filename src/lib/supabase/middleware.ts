@@ -145,13 +145,19 @@ export async function updateSession(request: NextRequest) {
     // Sanitize user ID to remove any potential :1 suffix
     const sanitizedUserId = sanitizeUUID(user.id);
 
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from("users")
       .select("role")
       .eq("id", sanitizedUserId)
-      .single();
+      .maybeSingle();
 
-    const userRole = (userData as { role: string } | null)?.role;
+    // If user profile doesn't exist or there's an error, redirect to dashboard
+    if (userError || !userData) {
+      console.error("Admin access denied - user profile not found:", sanitizedUserId);
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    const userRole = userData.role as string;
     if (userRole !== "superadmin") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }

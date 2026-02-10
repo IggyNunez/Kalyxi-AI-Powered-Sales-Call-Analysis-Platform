@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       .from("users")
       .select("id")
       .eq("email", email)
-      .single();
+      .maybeSingle();
 
     if (existingUser) {
       return NextResponse.json(
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
       .from("organizations")
       .select("id")
       .eq("slug", slug)
-      .single();
+      .maybeSingle();
 
     const finalSlug = existingOrg ? `${slug}-${Date.now()}` : slug;
 

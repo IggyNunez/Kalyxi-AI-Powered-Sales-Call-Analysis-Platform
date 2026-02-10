@@ -38,22 +38,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const sanitizedUserId = sanitizeUUID(userId);
 
     try {
-      const { data: userProfile } = await supabase
+      const { data: userProfile, error: profileError } = await supabase
         .from("users")
         .select("*")
         .eq("id", sanitizedUserId)
-        .single();
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("Error fetching user profile:", profileError);
+        return;
+      }
 
       if (userProfile) {
         setProfile(userProfile as User);
 
         // Sanitize org_id as well
         const sanitizedOrgId = sanitizeUUID(userProfile.org_id);
-        const { data: org } = await supabase
+        const { data: org, error: orgError } = await supabase
           .from("organizations")
           .select("*")
           .eq("id", sanitizedOrgId)
-          .single();
+          .maybeSingle();
+
+        if (orgError) {
+          console.error("Error fetching organization:", orgError);
+          return;
+        }
 
         if (org) {
           setOrganization(org as Organization);

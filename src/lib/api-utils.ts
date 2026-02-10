@@ -35,10 +35,16 @@ export async function getCurrentUser(): Promise<{
       .from("users")
       .select("*")
       .eq("id", sanitizedUserId)
-      .single();
+      .maybeSingle();
 
-    if (userError || !user) {
-      return { user: null, orgId: null, role: null };
+    if (userError) {
+      console.error("Error fetching user profile:", userError);
+      return { user: null, orgId: null, role: null, error: userError.message };
+    }
+
+    if (!user) {
+      // User exists in auth.users but not in public.users - they need to complete registration
+      return { user: null, orgId: null, role: null, error: "User profile not found. Please complete registration." };
     }
 
     return {

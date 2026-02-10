@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       .from("users")
       .select("id")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
     if (existingUser) {
       return NextResponse.json(
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       .from("organizations")
       .select("id")
       .eq("slug", companySlug)
-      .single();
+      .maybeSingle();
 
     let finalSlug = companySlug;
     if (existingOrg) {
