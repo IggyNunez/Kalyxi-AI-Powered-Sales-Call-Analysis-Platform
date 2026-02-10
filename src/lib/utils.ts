@@ -58,3 +58,15 @@ export function truncate(str: string, length: number): string {
   if (str.length <= length) return str;
   return str.slice(0, length) + "...";
 }
+
+/**
+ * Sanitize UUID by removing any trailing suffix (e.g., `:1`)
+ * This handles a potential Supabase client caching issue
+ */
+export function sanitizeUUID(uuid: string): string {
+  if (!uuid || typeof uuid !== "string") {
+    return uuid;
+  }
+  // Remove any trailing :N suffix (e.g., `:1`, `:2`, etc.)
+  return uuid.replace(/:\d+$/, "");
+}

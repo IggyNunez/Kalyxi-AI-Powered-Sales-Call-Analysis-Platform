@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { User as SupabaseUser, Session } from "@supabase/supabase-js";
 import { User, UserRole, Organization } from "@/types/database";
 import { useRouter } from "next/navigation";
+import { sanitizeUUID } from "@/lib/utils";
 
 interface AuthContextType {
   user: SupabaseUser | null;
@@ -33,20 +34,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = createClient();
 
   const fetchProfile = async (userId: string) => {
+    // Sanitize userId to remove any potential :1 suffix from Supabase caching
+    const sanitizedUserId = sanitizeUUID(userId);
+
     try {
       const { data: userProfile } = await supabase
         .from("users")
         .select("*")
-        .eq("id", userId)
+        .eq("id", sanitizedUserId)
         .single();
 
       if (userProfile) {
         setProfile(userProfile as User);
 
+        // Sanitize org_id as well
+        const sanitizedOrgId = sanitizeUUID(userProfile.org_id);
         const { data: org } = await supabase
           .from("organizations")
           .select("*")
-          .eq("id", userProfile.org_id)
+          .eq("id", sanitizedOrgId)
           .single();
 
         if (org) {
@@ -57,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await supabase
           .from("users")
           .update({ last_login_at: new Date().toISOString() })
-          .eq("id", userId);
+          .eq("id", sanitizedUserId);
       }
     } catch (error) {
       console.error("Error fetching profile:", error);

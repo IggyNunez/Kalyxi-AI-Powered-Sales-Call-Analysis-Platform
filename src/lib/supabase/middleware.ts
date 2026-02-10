@@ -1,6 +1,14 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Sanitize UUID by removing any trailing suffix (e.g., `:1`)
+function sanitizeUUID(uuid: string): string {
+  if (!uuid || typeof uuid !== "string") {
+    return uuid;
+  }
+  return uuid.replace(/:\d+$/, "");
+}
+
 // Security headers configuration
 const securityHeaders = {
   // Content Security Policy
@@ -134,10 +142,13 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
+    // Sanitize user ID to remove any potential :1 suffix
+    const sanitizedUserId = sanitizeUUID(user.id);
+
     const { data: userData } = await supabase
       .from("users")
       .select("role")
-      .eq("id", user.id)
+      .eq("id", sanitizedUserId)
       .single();
 
     const userRole = (userData as { role: string } | null)?.role;

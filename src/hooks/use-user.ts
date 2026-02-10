@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import { User, UserRole, Organization } from "@/types/database";
+import { sanitizeUUID } from "@/lib/utils";
 
 interface UseUserReturn {
   user: SupabaseUser | null;
@@ -27,22 +28,26 @@ export function useUser(): UseUserReturn {
   const supabase = createClient();
 
   const fetchUserData = useCallback(async (authUser: SupabaseUser) => {
+    // Sanitize userId to remove any potential :1 suffix from Supabase caching
+    const sanitizedUserId = sanitizeUUID(authUser.id);
+
     try {
       // Fetch user profile
       const { data: userProfile } = await supabase
         .from("users")
         .select("*")
-        .eq("id", authUser.id)
+        .eq("id", sanitizedUserId)
         .single();
 
       if (userProfile) {
         setProfile(userProfile as User);
 
-        // Fetch organization
+        // Fetch organization (sanitize org_id as well)
+        const sanitizedOrgId = sanitizeUUID(userProfile.org_id);
         const { data: org } = await supabase
           .from("organizations")
           .select("*")
-          .eq("id", userProfile.org_id)
+          .eq("id", sanitizedOrgId)
           .single();
 
         if (org) {
