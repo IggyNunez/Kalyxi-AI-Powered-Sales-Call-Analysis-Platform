@@ -269,9 +269,48 @@ export async function syncUserTranscripts(
     const result = await syncConnectionTranscripts(connection, options);
     results.push(result);
   } else {
-    // Would need to list user connections and sync all
-    // For now, require connectionId
-    throw new Error("connectionId required for user sync");
+    // Sync all user connections
+    const { listUserGoogleConnections } = await import("./storage");
+    const connections = await listUserGoogleConnections(userId);
+
+    if (connections.length === 0) {
+      // No connections to sync - return empty results (not an error)
+      return results;
+    }
+
+    for (const connPublic of connections) {
+      if (!connPublic.is_token_valid) {
+        // Skip invalid connections but record it
+        results.push({
+          success: false,
+          connectionId: connPublic.id,
+          conferencesChecked: 0,
+          transcriptsFetched: 0,
+          transcriptsSaved: 0,
+          errors: ["Token expired or invalid - please reconnect"],
+          newTranscripts: [],
+        });
+        continue;
+      }
+
+      const connection = await getGoogleConnection(connPublic.id);
+      if (!connection) continue;
+
+      try {
+        const result = await syncConnectionTranscripts(connection, options);
+        results.push(result);
+      } catch (error) {
+        results.push({
+          success: false,
+          connectionId: connection.id,
+          conferencesChecked: 0,
+          transcriptsFetched: 0,
+          transcriptsSaved: 0,
+          errors: [error instanceof Error ? error.message : "Unknown error"],
+          newTranscripts: [],
+        });
+      }
+    }
   }
 
   return results;
