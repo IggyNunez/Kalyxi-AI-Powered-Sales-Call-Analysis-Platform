@@ -115,6 +115,30 @@ export function isValidUUID(uuid: string): boolean {
   return uuidRegex.test(uuid);
 }
 
+// Sanitize UUID - removes any suffix like `:1` that might be added by Supabase deduplication
+export function sanitizeUUID(uuid: string): string {
+  if (!uuid || typeof uuid !== "string") {
+    return uuid;
+  }
+  // Remove any trailing :N suffix (e.g., `:1`, `:2`, etc.)
+  return uuid.replace(/:\d+$/, "");
+}
+
+// Validate and sanitize UUID, throws if invalid after sanitization
+export function validateAndSanitizeUUID(uuid: string, fieldName: string = "id"): string {
+  if (!uuid || typeof uuid !== "string") {
+    throw new Error(`Invalid ${fieldName}: must be a non-empty string`);
+  }
+
+  const sanitized = sanitizeUUID(uuid);
+
+  if (!isValidUUID(sanitized)) {
+    throw new Error(`Invalid ${fieldName}: "${uuid}" is not a valid UUID`);
+  }
+
+  return sanitized;
+}
+
 // Pagination helper
 export interface PaginationParams {
   page: number;

@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { syncUserTranscripts } from "@/lib/google/sync-engine";
+import { validateAndSanitizeUUID, isValidUUID, sanitizeUUID } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // Allow up to 60 seconds for sync
@@ -22,8 +23,19 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
+      console.error("[Sync Now] Auth error:", authError?.message || "No user");
       return NextResponse.json(
         { error: "Unauthorized", message: "You must be logged in" },
+        { status: 401 }
+      );
+    }
+
+    // Validate and sanitize user ID (handles potential :1 suffix from Supabase)
+    const userId = sanitizeUUID(user.id);
+    if (!isValidUUID(userId)) {
+      console.error("[Sync Now] Invalid user ID from auth:", user.id);
+      return NextResponse.json(
+        { error: "Unauthorized", message: "Invalid user session" },
         { status: 401 }
       );
     }
@@ -31,7 +43,7 @@ export async function POST(request: Request) {
     // Parse request body
     const body = await request.json().catch(() => ({}));
     const {
-      connectionId,
+      connectionId: rawConnectionId,
       windowHours = 24,
       maxConferences = 50,
     } = body as {
@@ -39,6 +51,20 @@ export async function POST(request: Request) {
       windowHours?: number;
       maxConferences?: number;
     };
+
+    // Validate and sanitize connectionId if provided
+    let connectionId: string | undefined;
+    if (rawConnectionId) {
+      try {
+        connectionId = validateAndSanitizeUUID(rawConnectionId, "connectionId");
+      } catch (validationError) {
+        console.error("[Sync Now] Invalid connectionId:", rawConnectionId);
+        return NextResponse.json(
+          { error: "Bad Request", message: validationError instanceof Error ? validationError.message : "Invalid connectionId" },
+          { status: 400 }
+        );
+      }
+    }
 
     // Validate options
     if (windowHours < 1 || windowHours > 168) {
@@ -55,8 +81,11 @@ export async function POST(request: Request) {
       );
     }
 
+    // Log the sync attempt for debugging
+    console.log("[Sync Now] Starting sync for user:", userId, "connection:", connectionId || "all");
+
     // Sync transcripts
-    const results = await syncUserTranscripts(user.id, {
+    const results = await syncUserTranscripts(userId, {
       connectionId,
       windowHours,
       maxConferences,

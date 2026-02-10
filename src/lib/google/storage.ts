@@ -9,6 +9,38 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/server";
 import { encryptToken, decryptToken } from "./crypto";
 import { createHash, randomBytes } from "crypto";
+
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Sanitize UUID by removing any trailing suffix (e.g., `:1`)
+ * This handles a potential Supabase client issue where suffixes may be added
+ */
+function sanitizeUUID(uuid: string): string {
+  if (!uuid || typeof uuid !== "string") {
+    return uuid;
+  }
+  return uuid.replace(/:\d+$/, "");
+}
+
+/**
+ * Validate that a string is a valid UUID
+ */
+function isValidUUID(uuid: string): boolean {
+  return UUID_REGEX.test(uuid);
+}
+
+/**
+ * Sanitize and validate a UUID, throwing an error if invalid
+ */
+function validateUUID(uuid: string, fieldName: string = "id"): string {
+  const sanitized = sanitizeUUID(uuid);
+  if (!isValidUUID(sanitized)) {
+    throw new Error(`Invalid ${fieldName}: "${uuid}" is not a valid UUID`);
+  }
+  return sanitized;
+}
 import type {
   GoogleConnection,
   GoogleConnectionPublic,
@@ -92,10 +124,13 @@ export async function getGoogleConnection(
 ): Promise<GoogleConnection | null> {
   const supabase = createAdminClient();
 
+  // Validate and sanitize the connectionId
+  const validConnectionId = validateUUID(connectionId, "connectionId");
+
   const { data, error } = await supabase
     .from("google_connections")
     .select("*")
-    .eq("id", connectionId)
+    .eq("id", validConnectionId)
     .single();
 
   if (error) {
@@ -132,10 +167,13 @@ export async function listUserGoogleConnections(
 ): Promise<GoogleConnectionPublic[]> {
   const supabase = createAdminClient();
 
+  // Validate and sanitize the userId
+  const validUserId = validateUUID(userId, "userId");
+
   const { data, error } = await supabase
     .from("google_connections")
     .select("id, google_email, scopes, last_sync_at, last_sync_error, created_at, token_expiry")
-    .eq("user_id", userId)
+    .eq("user_id", validUserId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -166,11 +204,15 @@ export async function deleteGoogleConnection(
 ): Promise<boolean> {
   const supabase = createAdminClient();
 
+  // Validate and sanitize IDs
+  const validUserId = validateUUID(userId, "userId");
+  const validConnectionId = validateUUID(connectionId, "connectionId");
+
   const { error, count } = await supabase
     .from("google_connections")
     .delete()
-    .eq("id", connectionId)
-    .eq("user_id", userId);
+    .eq("id", validConnectionId)
+    .eq("user_id", validUserId);
 
   if (error) {
     throw new Error(`Failed to delete Google connection: ${error.message}`);
@@ -359,15 +401,19 @@ export async function listTranscripts(
   const supabase = createAdminClient();
   const { limit = 50, offset = 0, connectionId } = options || {};
 
+  // Validate and sanitize IDs
+  const validUserId = validateUUID(userId, "userId");
+  const validConnectionId = connectionId ? validateUUID(connectionId, "connectionId") : undefined;
+
   let query = supabase
     .from("meet_transcripts")
     .select("*")
-    .eq("user_id", userId)
+    .eq("user_id", validUserId)
     .order("meeting_end_time", { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1);
 
-  if (connectionId) {
-    query = query.eq("connection_id", connectionId);
+  if (validConnectionId) {
+    query = query.eq("connection_id", validConnectionId);
   }
 
   const { data, error } = await query;
@@ -618,11 +664,15 @@ export async function createSyncLog(
 ): Promise<string> {
   const supabase = createAdminClient();
 
+  // Validate and sanitize IDs if provided
+  const validConnectionId = connectionId ? validateUUID(connectionId, "connectionId") : null;
+  const validUserId = userId ? validateUUID(userId, "userId") : null;
+
   const { data, error } = await supabase
     .from("sync_logs")
     .insert({
-      connection_id: connectionId,
-      user_id: userId,
+      connection_id: validConnectionId,
+      user_id: validUserId,
       sync_type: syncType,
       status: "started",
     })

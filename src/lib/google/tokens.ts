@@ -14,6 +14,24 @@ import type { GoogleConnection, EncryptedToken } from "./types";
 // Buffer time before token expiry to trigger refresh (5 minutes)
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Sanitize and validate a connectionId, removing any trailing suffix
+ */
+function validateConnectionId(connectionId: string): string {
+  if (!connectionId || typeof connectionId !== "string") {
+    throw new Error("connectionId is required");
+  }
+  // Remove any trailing :N suffix (handles Supabase deduplication issue)
+  const sanitized = connectionId.replace(/:\d+$/, "");
+  if (!UUID_REGEX.test(sanitized)) {
+    throw new Error(`Invalid connectionId: "${connectionId}" is not a valid UUID`);
+  }
+  return sanitized;
+}
+
 /**
  * Check if a token is expired or about to expire.
  *
@@ -43,11 +61,14 @@ export function isTokenExpired(
 export async function getValidAccessToken(connectionId: string): Promise<string> {
   const supabase = createAdminClient();
 
+  // Validate and sanitize connectionId
+  const validConnectionId = validateConnectionId(connectionId);
+
   // Fetch the connection
   const { data: connection, error } = await supabase
     .from("google_connections")
     .select("*")
-    .eq("id", connectionId)
+    .eq("id", validConnectionId)
     .single();
 
   if (error || !connection) {
@@ -90,7 +111,7 @@ export async function getValidAccessToken(connectionId: string): Promise<string>
         last_sync_error:
           error instanceof Error ? error.message : "Token refresh failed",
       })
-      .eq("id", connectionId);
+      .eq("id", validConnectionId);
 
     throw error;
   }
@@ -117,7 +138,7 @@ export async function getValidAccessToken(connectionId: string): Promise<string>
   const { error: updateError } = await supabase
     .from("google_connections")
     .update(updateData)
-    .eq("id", connectionId);
+    .eq("id", validConnectionId);
 
   if (updateError) {
     console.error("Failed to update token in database:", updateError);
@@ -170,11 +191,19 @@ export async function validateConnection(connectionId: string): Promise<{
 }> {
   const supabase = createAdminClient();
 
+  // Validate and sanitize connectionId
+  let validConnectionId: string;
+  try {
+    validConnectionId = validateConnectionId(connectionId);
+  } catch {
+    return { valid: false, error: "Invalid connection ID" };
+  }
+
   // Fetch the connection
   const { data: connection, error } = await supabase
     .from("google_connections")
     .select("token_expiry, refresh_token_encrypted")
-    .eq("id", connectionId)
+    .eq("id", validConnectionId)
     .single();
 
   if (error || !connection) {
