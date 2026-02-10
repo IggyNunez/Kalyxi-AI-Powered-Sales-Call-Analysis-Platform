@@ -175,7 +175,8 @@ export async function listConferenceRecordsRecent(
 
   // Calculate the start time for the filter
   const startTime = new Date(Date.now() - windowHours * 60 * 60 * 1000);
-  const filter = encodeURIComponent(`end_time>="${startTime.toISOString()}"`);
+  // Don't pre-encode - URLSearchParams will handle encoding
+  const filter = `end_time>="${startTime.toISOString()}"`;
 
   do {
     const params = new URLSearchParams({
@@ -227,13 +228,12 @@ export async function listConferenceRecordsByMeetingCode(
   }
 
   // Use filter to find conference records by meeting code
-  const filter = encodeURIComponent(
-    `space.meeting_code="${normalizedCode}"`
-  );
+  const filter = `space.meeting_code="${normalizedCode}"`;
+  const params = new URLSearchParams({ filter });
 
   const response = await meetFetch<ListConferenceRecordsResponse>(
     accessToken,
-    `/conferenceRecords?filter=${filter}`
+    `/conferenceRecords?${params.toString()}`
   );
 
   return response.conferenceRecords || [];
