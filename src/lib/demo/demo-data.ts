@@ -1290,14 +1290,16 @@ export async function getDemoDataStatus(
 // ============================================================================
 
 export function isDemoDataEnabled(): boolean {
-  const enabled = process.env.DEMO_DATA_ENABLED === "true";
-  const isProduction = process.env.NODE_ENV === "production";
-
-  // In production, DEMO_DATA_ENABLED must be explicitly set
-  if (isProduction && !enabled) {
-    return false;
+  // Check if explicitly enabled via environment variable
+  if (process.env.DEMO_DATA_ENABLED === "true") {
+    return true;
   }
 
-  // In development, allow by default unless explicitly disabled
-  return enabled || process.env.NODE_ENV === "development";
+  // In development mode, allow by default for convenience
+  if (process.env.NODE_ENV !== "production") {
+    return true;
+  }
+
+  // In production, require explicit opt-in
+  return false;
 }
