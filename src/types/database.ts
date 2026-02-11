@@ -7,9 +7,9 @@ export type Json =
   | Json[];
 
 // Enums
-export type UserRole = "caller" | "admin" | "superadmin";
+export type UserRole = "caller" | "admin" | "superadmin" | "manager" | "coach";
 export type CallStatus = "pending" | "processing" | "analyzed" | "failed";
-export type CallSource = "webhook" | "google_notes" | "manual" | "api";
+export type CallSource = "webhook" | "google_notes" | "manual" | "api" | "calendar";
 export type GradingFieldType = "score" | "text" | "checklist" | "boolean" | "percentage";
 export type ImportanceLevel = "high" | "medium" | "low";
 export type PlanType = "free" | "starter" | "professional" | "enterprise";
@@ -19,6 +19,39 @@ export type ScorecardStatus = "draft" | "active" | "archived";
 export type InsightCategory = "general" | "coaching" | "performance" | "compliance" | "custom";
 export type InsightOutputFormat = "text" | "bullets" | "numbered" | "json";
 export type ScoredBy = "ai" | "manual" | "hybrid";
+
+// New Coaching Platform Enums
+export type ScoringMethod = "weighted" | "simple_average" | "pass_fail" | "points" | "custom_formula";
+export type TemplateUseCase = "sales_call" | "onboarding" | "qa_review" | "training" | "custom";
+export type TemplateStatus = "draft" | "active" | "archived";
+export type CriteriaType =
+  | "scale"
+  | "pass_fail"
+  | "checklist"
+  | "text"
+  | "dropdown"
+  | "multi_select"
+  | "rating_stars"
+  | "percentage";
+export type SessionStatus =
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "reviewed"
+  | "disputed"
+  | "cancelled";
+export type PassStatus = "pass" | "fail" | "pending";
+export type SyncDirection = "calendar_to_sessions" | "bidirectional";
+export type SessionAuditAction =
+  | "created"
+  | "started"
+  | "score_updated"
+  | "completed"
+  | "reviewed"
+  | "disputed"
+  | "dispute_resolved"
+  | "cancelled"
+  | "reopened";
 
 // Grading criteria configuration
 export interface GradingCriterion {
@@ -63,6 +96,162 @@ export interface ScorecardCriterion {
   scoring_guide: string;
   keywords?: string[];
   order: number;
+}
+
+// ============================================================================
+// COACHING PLATFORM TYPES
+// ============================================================================
+
+// Template settings JSONB structure
+export interface TemplateSettings {
+  allow_na: boolean;
+  require_comments_below_threshold: boolean;
+  comments_threshold: number;
+  auto_calculate: boolean;
+  show_weights_to_agents: boolean;
+  allow_partial_submission: boolean;
+}
+
+// Criteria type-specific configurations
+export interface ScaleCriteriaConfig {
+  min: number;
+  max: number;
+  step: number;
+  labels?: Record<string, string>; // e.g., { "1": "Poor", "5": "Excellent" }
+}
+
+export interface PassFailCriteriaConfig {
+  pass_label: string;
+  fail_label: string;
+  pass_value: number;
+  fail_value: number;
+}
+
+export interface ChecklistItem {
+  id: string;
+  label: string;
+  points: number;
+}
+
+export interface ChecklistCriteriaConfig {
+  items: ChecklistItem[];
+  scoring: "sum" | "average" | "all_required";
+}
+
+export interface DropdownOption {
+  value: string;
+  label: string;
+  score: number;
+}
+
+export interface DropdownCriteriaConfig {
+  options: DropdownOption[];
+}
+
+export interface MultiSelectCriteriaConfig {
+  options: DropdownOption[];
+  scoring: "sum" | "average";
+}
+
+export interface StarsCriteriaConfig {
+  max_stars: number;
+  allow_half: boolean;
+}
+
+export interface PercentageThreshold {
+  value: number;
+  label: string;
+  color: string;
+}
+
+export interface PercentageCriteriaConfig {
+  thresholds: PercentageThreshold[];
+}
+
+export interface TextCriteriaConfig {
+  max_length?: number;
+  placeholder?: string;
+  min_length?: number;
+}
+
+export type CriteriaConfig =
+  | ScaleCriteriaConfig
+  | PassFailCriteriaConfig
+  | ChecklistCriteriaConfig
+  | DropdownCriteriaConfig
+  | MultiSelectCriteriaConfig
+  | StarsCriteriaConfig
+  | PercentageCriteriaConfig
+  | TextCriteriaConfig;
+
+// Score value structures for different criteria types
+export interface ScaleScoreValue {
+  value: number;
+}
+
+export interface PassFailScoreValue {
+  passed: boolean;
+}
+
+export interface ChecklistScoreValue {
+  checked: string[];
+  unchecked: string[];
+}
+
+export interface DropdownScoreValue {
+  selected: string;
+}
+
+export interface MultiSelectScoreValue {
+  selected: string[];
+}
+
+export interface StarsScoreValue {
+  stars: number;
+}
+
+export interface PercentageScoreValue {
+  value: number;
+}
+
+export interface TextScoreValue {
+  response: string;
+}
+
+export type ScoreValue =
+  | ScaleScoreValue
+  | PassFailScoreValue
+  | ChecklistScoreValue
+  | DropdownScoreValue
+  | MultiSelectScoreValue
+  | StarsScoreValue
+  | PercentageScoreValue
+  | TextScoreValue;
+
+// Event filter for calendar integration
+export interface CalendarEventFilter {
+  title_contains: string[];
+  title_not_contains: string[];
+  min_duration_minutes: number;
+  max_duration_minutes: number | null;
+  require_attendees: boolean;
+  attendee_domains: string[];
+  exclude_all_day: boolean;
+  exclude_recurring: boolean;
+}
+
+// Agent mapping for calendar events
+export interface AgentMapping {
+  type: "attendee_email" | "organizer" | "custom_field";
+  field: string;
+  fallback_to_organizer: boolean;
+}
+
+// Template version snapshot structure
+export interface TemplateVersionSnapshot {
+  template: Record<string, unknown>;
+  groups: Record<string, unknown>[];
+  criteria: Record<string, unknown>[];
 }
 
 // Detailed criterion score result
@@ -934,6 +1123,478 @@ export interface Database {
           updated_at?: string;
         };
       };
+      // ================================================================
+      // COACHING PLATFORM TABLES
+      // ================================================================
+      templates: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          description?: string;
+          scoring_method: ScoringMethod;
+          use_case: TemplateUseCase;
+          pass_threshold: number;
+          max_total_score: number;
+          settings: TemplateSettings;
+          status: TemplateStatus;
+          version: number;
+          is_default: boolean;
+          legacy_scorecard_id?: string;
+          created_by?: string;
+          created_at: string;
+          updated_at: string;
+          activated_at?: string;
+          archived_at?: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          name: string;
+          description?: string;
+          scoring_method?: ScoringMethod;
+          use_case?: TemplateUseCase;
+          pass_threshold?: number;
+          max_total_score?: number;
+          settings?: TemplateSettings;
+          status?: TemplateStatus;
+          version?: number;
+          is_default?: boolean;
+          legacy_scorecard_id?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+          activated_at?: string;
+          archived_at?: string;
+        };
+        Update: {
+          id?: string;
+          org_id?: string;
+          name?: string;
+          description?: string;
+          scoring_method?: ScoringMethod;
+          use_case?: TemplateUseCase;
+          pass_threshold?: number;
+          max_total_score?: number;
+          settings?: TemplateSettings;
+          status?: TemplateStatus;
+          version?: number;
+          is_default?: boolean;
+          legacy_scorecard_id?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+          activated_at?: string;
+          archived_at?: string;
+        };
+      };
+      criteria_groups: {
+        Row: {
+          id: string;
+          template_id: string;
+          name: string;
+          description?: string;
+          sort_order: number;
+          weight: number;
+          is_required: boolean;
+          is_collapsed_by_default: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          template_id: string;
+          name: string;
+          description?: string;
+          sort_order?: number;
+          weight?: number;
+          is_required?: boolean;
+          is_collapsed_by_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          template_id?: string;
+          name?: string;
+          description?: string;
+          sort_order?: number;
+          weight?: number;
+          is_required?: boolean;
+          is_collapsed_by_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      criteria: {
+        Row: {
+          id: string;
+          template_id: string;
+          group_id?: string;
+          name: string;
+          description?: string;
+          criteria_type: CriteriaType;
+          config: CriteriaConfig;
+          weight: number;
+          max_score: number;
+          sort_order: number;
+          is_required: boolean;
+          is_auto_fail: boolean;
+          auto_fail_threshold?: number;
+          scoring_guide?: string;
+          keywords: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          template_id: string;
+          group_id?: string;
+          name: string;
+          description?: string;
+          criteria_type?: CriteriaType;
+          config?: CriteriaConfig;
+          weight?: number;
+          max_score?: number;
+          sort_order?: number;
+          is_required?: boolean;
+          is_auto_fail?: boolean;
+          auto_fail_threshold?: number;
+          scoring_guide?: string;
+          keywords?: string[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          template_id?: string;
+          group_id?: string;
+          name?: string;
+          description?: string;
+          criteria_type?: CriteriaType;
+          config?: CriteriaConfig;
+          weight?: number;
+          max_score?: number;
+          sort_order?: number;
+          is_required?: boolean;
+          is_auto_fail?: boolean;
+          auto_fail_threshold?: number;
+          scoring_guide?: string;
+          keywords?: string[];
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      sessions: {
+        Row: {
+          id: string;
+          org_id: string;
+          template_id: string;
+          call_id?: string;
+          coach_id?: string;
+          agent_id?: string;
+          status: SessionStatus;
+          google_event_id?: string;
+          google_event_title?: string;
+          google_event_start?: string;
+          google_event_end?: string;
+          google_calendar_link_id?: string;
+          total_score?: number;
+          total_possible?: number;
+          percentage_score?: number;
+          pass_status?: PassStatus;
+          has_auto_fail: boolean;
+          auto_fail_criteria_ids: string[];
+          coach_notes?: string;
+          agent_notes?: string;
+          reviewed_by?: string;
+          reviewed_at?: string;
+          review_notes?: string;
+          disputed_at?: string;
+          dispute_reason?: string;
+          dispute_resolved_at?: string;
+          dispute_resolution?: string;
+          template_version?: number;
+          template_snapshot?: TemplateVersionSnapshot;
+          created_at: string;
+          updated_at: string;
+          started_at?: string;
+          completed_at?: string;
+          cancelled_at?: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          template_id: string;
+          call_id?: string;
+          coach_id?: string;
+          agent_id?: string;
+          status?: SessionStatus;
+          google_event_id?: string;
+          google_event_title?: string;
+          google_event_start?: string;
+          google_event_end?: string;
+          google_calendar_link_id?: string;
+          total_score?: number;
+          total_possible?: number;
+          percentage_score?: number;
+          pass_status?: PassStatus;
+          has_auto_fail?: boolean;
+          auto_fail_criteria_ids?: string[];
+          coach_notes?: string;
+          agent_notes?: string;
+          reviewed_by?: string;
+          reviewed_at?: string;
+          review_notes?: string;
+          disputed_at?: string;
+          dispute_reason?: string;
+          dispute_resolved_at?: string;
+          dispute_resolution?: string;
+          template_version?: number;
+          template_snapshot?: TemplateVersionSnapshot;
+          created_at?: string;
+          updated_at?: string;
+          started_at?: string;
+          completed_at?: string;
+          cancelled_at?: string;
+        };
+        Update: {
+          id?: string;
+          org_id?: string;
+          template_id?: string;
+          call_id?: string;
+          coach_id?: string;
+          agent_id?: string;
+          status?: SessionStatus;
+          google_event_id?: string;
+          google_event_title?: string;
+          google_event_start?: string;
+          google_event_end?: string;
+          google_calendar_link_id?: string;
+          total_score?: number;
+          total_possible?: number;
+          percentage_score?: number;
+          pass_status?: PassStatus;
+          has_auto_fail?: boolean;
+          auto_fail_criteria_ids?: string[];
+          coach_notes?: string;
+          agent_notes?: string;
+          reviewed_by?: string;
+          reviewed_at?: string;
+          review_notes?: string;
+          disputed_at?: string;
+          dispute_reason?: string;
+          dispute_resolved_at?: string;
+          dispute_resolution?: string;
+          template_version?: number;
+          template_snapshot?: TemplateVersionSnapshot;
+          created_at?: string;
+          updated_at?: string;
+          started_at?: string;
+          completed_at?: string;
+          cancelled_at?: string;
+        };
+      };
+      scores: {
+        Row: {
+          id: string;
+          session_id: string;
+          criteria_id: string;
+          criteria_group_id?: string;
+          value: ScoreValue;
+          raw_score?: number;
+          normalized_score?: number;
+          weighted_score?: number;
+          is_na: boolean;
+          is_auto_fail_triggered: boolean;
+          comment?: string;
+          criteria_snapshot?: CriteriaConfig;
+          scored_by?: string;
+          scored_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          criteria_id: string;
+          criteria_group_id?: string;
+          value: ScoreValue;
+          raw_score?: number;
+          normalized_score?: number;
+          weighted_score?: number;
+          is_na?: boolean;
+          is_auto_fail_triggered?: boolean;
+          comment?: string;
+          criteria_snapshot?: CriteriaConfig;
+          scored_by?: string;
+          scored_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          criteria_id?: string;
+          criteria_group_id?: string;
+          value?: ScoreValue;
+          raw_score?: number;
+          normalized_score?: number;
+          weighted_score?: number;
+          is_na?: boolean;
+          is_auto_fail_triggered?: boolean;
+          comment?: string;
+          criteria_snapshot?: CriteriaConfig;
+          scored_by?: string;
+          scored_at?: string;
+          updated_at?: string;
+        };
+      };
+      google_calendar_links: {
+        Row: {
+          id: string;
+          org_id: string;
+          template_id: string;
+          calendar_id: string;
+          calendar_name?: string;
+          google_account_email: string;
+          access_token: string;
+          refresh_token_encrypted: string;
+          refresh_token_iv: string;
+          refresh_token_tag: string;
+          token_expiry: string;
+          scopes: string[];
+          event_filter: CalendarEventFilter;
+          sync_enabled: boolean;
+          sync_direction: SyncDirection;
+          auto_create_sessions: boolean;
+          webhook_channel_id?: string;
+          webhook_resource_id?: string;
+          webhook_expiration?: string;
+          last_sync_at?: string;
+          last_sync_error?: string;
+          sync_cursor?: string;
+          agent_mapping: AgentMapping;
+          created_by?: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          template_id: string;
+          calendar_id: string;
+          calendar_name?: string;
+          google_account_email: string;
+          access_token: string;
+          refresh_token_encrypted: string;
+          refresh_token_iv: string;
+          refresh_token_tag: string;
+          token_expiry: string;
+          scopes?: string[];
+          event_filter?: CalendarEventFilter;
+          sync_enabled?: boolean;
+          sync_direction?: SyncDirection;
+          auto_create_sessions?: boolean;
+          webhook_channel_id?: string;
+          webhook_resource_id?: string;
+          webhook_expiration?: string;
+          last_sync_at?: string;
+          last_sync_error?: string;
+          sync_cursor?: string;
+          agent_mapping?: AgentMapping;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          org_id?: string;
+          template_id?: string;
+          calendar_id?: string;
+          calendar_name?: string;
+          google_account_email?: string;
+          access_token?: string;
+          refresh_token_encrypted?: string;
+          refresh_token_iv?: string;
+          refresh_token_tag?: string;
+          token_expiry?: string;
+          scopes?: string[];
+          event_filter?: CalendarEventFilter;
+          sync_enabled?: boolean;
+          sync_direction?: SyncDirection;
+          auto_create_sessions?: boolean;
+          webhook_channel_id?: string;
+          webhook_resource_id?: string;
+          webhook_expiration?: string;
+          last_sync_at?: string;
+          last_sync_error?: string;
+          sync_cursor?: string;
+          agent_mapping?: AgentMapping;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      session_audit_log: {
+        Row: {
+          id: string;
+          session_id: string;
+          user_id?: string;
+          action: SessionAuditAction;
+          details: Json;
+          ip_address?: string;
+          user_agent?: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          user_id?: string;
+          action: SessionAuditAction;
+          details?: Json;
+          ip_address?: string;
+          user_agent?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          user_id?: string;
+          action?: SessionAuditAction;
+          details?: Json;
+          ip_address?: string;
+          user_agent?: string;
+          created_at?: string;
+        };
+      };
+      template_versions: {
+        Row: {
+          id: string;
+          template_id: string;
+          version_number: number;
+          snapshot: TemplateVersionSnapshot;
+          change_summary?: string;
+          changed_by?: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          template_id: string;
+          version_number: number;
+          snapshot: TemplateVersionSnapshot;
+          change_summary?: string;
+          changed_by?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          template_id?: string;
+          version_number?: number;
+          snapshot?: TemplateVersionSnapshot;
+          change_summary?: string;
+          changed_by?: string;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       caller_stats: {
@@ -1028,3 +1689,67 @@ export type CallScoreResultUpdate = Database["public"]["Tables"]["call_score_res
 export type CriteriaOptimization = Database["public"]["Tables"]["criteria_optimizations"]["Row"];
 export type CriteriaOptimizationInsert = Database["public"]["Tables"]["criteria_optimizations"]["Insert"];
 export type CriteriaOptimizationUpdate = Database["public"]["Tables"]["criteria_optimizations"]["Update"];
+
+// Coaching Platform Types
+export type Template = Database["public"]["Tables"]["templates"]["Row"];
+export type TemplateInsert = Database["public"]["Tables"]["templates"]["Insert"];
+export type TemplateUpdate = Database["public"]["Tables"]["templates"]["Update"];
+
+export type CriteriaGroup = Database["public"]["Tables"]["criteria_groups"]["Row"];
+export type CriteriaGroupInsert = Database["public"]["Tables"]["criteria_groups"]["Insert"];
+export type CriteriaGroupUpdate = Database["public"]["Tables"]["criteria_groups"]["Update"];
+
+export type Criteria = Database["public"]["Tables"]["criteria"]["Row"];
+export type CriteriaInsert = Database["public"]["Tables"]["criteria"]["Insert"];
+export type CriteriaUpdate = Database["public"]["Tables"]["criteria"]["Update"];
+
+export type Session = Database["public"]["Tables"]["sessions"]["Row"];
+export type SessionInsert = Database["public"]["Tables"]["sessions"]["Insert"];
+export type SessionUpdate = Database["public"]["Tables"]["sessions"]["Update"];
+
+export type Score = Database["public"]["Tables"]["scores"]["Row"];
+export type ScoreInsert = Database["public"]["Tables"]["scores"]["Insert"];
+export type ScoreUpdate = Database["public"]["Tables"]["scores"]["Update"];
+
+export type GoogleCalendarLink = Database["public"]["Tables"]["google_calendar_links"]["Row"];
+export type GoogleCalendarLinkInsert = Database["public"]["Tables"]["google_calendar_links"]["Insert"];
+export type GoogleCalendarLinkUpdate = Database["public"]["Tables"]["google_calendar_links"]["Update"];
+
+export type SessionAuditLog = Database["public"]["Tables"]["session_audit_log"]["Row"];
+export type SessionAuditLogInsert = Database["public"]["Tables"]["session_audit_log"]["Insert"];
+export type SessionAuditLogUpdate = Database["public"]["Tables"]["session_audit_log"]["Update"];
+
+export type TemplateVersion = Database["public"]["Tables"]["template_versions"]["Row"];
+export type TemplateVersionInsert = Database["public"]["Tables"]["template_versions"]["Insert"];
+export type TemplateVersionUpdate = Database["public"]["Tables"]["template_versions"]["Update"];
+
+// Template with relations (for API responses)
+export interface TemplateWithRelations extends Template {
+  groups: CriteriaGroupWithCriteria[];
+  versions?: TemplateVersion[];
+  calendar_links?: GoogleCalendarLink[];
+}
+
+export interface CriteriaGroupWithCriteria extends CriteriaGroup {
+  criteria: Criteria[];
+}
+
+// Session with relations (for API responses)
+export interface SessionWithRelations extends Session {
+  template?: Template;
+  coach?: User;
+  agent?: User;
+  call?: Call;
+  scores?: Score[];
+  audit_log?: SessionAuditLog[];
+}
+
+// Score calculation result
+export interface SessionScoreResult {
+  total_score: number;
+  total_possible: number;
+  percentage_score: number;
+  pass_status: PassStatus;
+  has_auto_fail: boolean;
+  auto_fail_criteria_ids: string[];
+}

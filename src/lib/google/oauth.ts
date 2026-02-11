@@ -20,12 +20,13 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 
-// Required scopes for Meet transcript access
+// Required scopes for Meet transcript access and Calendar integration
 // Using drive.readonly for broader compatibility (includes drive.meet.readonly)
 export const GOOGLE_OAUTH_SCOPES = [
   "https://www.googleapis.com/auth/meetings.space.readonly",
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/documents.readonly",
+  "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
 ];

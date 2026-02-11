@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createClientWithToken } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { User, UserRole } from "@/types/database";
 
@@ -17,7 +17,13 @@ export async function getCurrentUser(): Promise<{
   error?: string;
 }> {
   try {
-    const supabase = await createClient();
+    // Try Bearer token first (for API/programmatic access)
+    let supabase = await createClientWithToken();
+
+    // Fall back to cookie-based auth
+    if (!supabase) {
+      supabase = await createClient();
+    }
 
     const {
       data: { user: authUser },
@@ -100,6 +106,17 @@ export async function requireRole(allowedRoles: UserRole[]) {
   }
 
   return { user, orgId, role, response: null };
+}
+
+// Simple role check (to use after requireAuth)
+export function checkRole(
+  currentRole: UserRole | null,
+  allowedRoles: UserRole[]
+): NextResponse | null {
+  if (!currentRole || !allowedRoles.includes(currentRole)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
 }
 
 // Require admin or superadmin
