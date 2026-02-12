@@ -24,6 +24,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   UsersRound,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -93,6 +94,11 @@ const navigation: NavItem[] = [
     href: "/dashboard/webhooks",
     icon: Webhook,
     roles: ["admin", "superadmin"],
+  },
+  {
+    name: "Google Calendar",
+    href: "/dashboard/google",
+    icon: Calendar,
   },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
