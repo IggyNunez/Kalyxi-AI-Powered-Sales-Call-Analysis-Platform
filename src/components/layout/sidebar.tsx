@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -213,6 +214,12 @@ export function Sidebar() {
   const { profile, organization, role, isAdmin, isSuperadmin, signOut } = useAuth();
   const { isCollapsed, isMobileOpen, toggleCollapse, closeMobile } = useSidebar();
   const { counts: sessionCounts } = useSessionCount();
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch by deferring active state calculation
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const canSee = (item: NavItem) => {
     if (!item.roles) return true;
@@ -357,9 +364,10 @@ export function Sidebar() {
         <nav className={cn("flex-1 space-y-1 overflow-y-auto scrollbar-hidden py-4", isCollapsed ? "px-2" : "px-3")}>
           {filteredNavigation.map((item, index) => {
             // Dashboard should only match exact path, other routes can match sub-routes
-            const isActive = item.href === "/dashboard"
+            // Use mounted check to prevent hydration mismatch
+            const isActive = mounted && (item.href === "/dashboard"
               ? pathname === item.href
-              : (pathname === item.href || pathname.startsWith(item.href + "/"));
+              : (pathname === item.href || pathname.startsWith(item.href + "/")));
             return (
               <NavLink
                 key={item.name}
@@ -382,7 +390,7 @@ export function Sidebar() {
                 </p>
               )}
               {filteredAdminNavigation.map((item, index) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                const isActive = mounted && (pathname === item.href || pathname.startsWith(item.href + "/"));
                 return (
                   <NavLink
                     key={item.name}
