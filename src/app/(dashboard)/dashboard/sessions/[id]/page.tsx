@@ -36,6 +36,7 @@ import {
 } from "@/types/database";
 import ScoringInterface from "@/components/sessions/ScoringInterface";
 import ScoreSummary from "@/components/sessions/ScoreSummary";
+import { CallContextPanel } from "@/components/sessions/CallContextPanel";
 
 interface SessionWithRelations extends Session {
   template?: Template;
@@ -393,7 +394,7 @@ export default function SessionPage() {
         </div>
 
         {/* Score Summary Sidebar */}
-        <div className="lg:sticky lg:top-4 self-start">
+        <div className="lg:sticky lg:top-4 self-start space-y-4">
           <ScoreSummary
             session={session}
             template={template!}
@@ -401,6 +402,10 @@ export default function SessionPage() {
             criteria={criteria}
             groups={groups}
           />
+
+          {session.call_id && (
+            <CallContextPanel callId={session.call_id} className="w-full" />
+          )}
         </div>
       </div>
     </div>

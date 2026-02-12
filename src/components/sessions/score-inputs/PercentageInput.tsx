@@ -80,7 +80,7 @@ export default function PercentageInput({
         </div>
       </div>
 
-      {/* Value display with input */}
+      {/* Value display with input - mobile optimized */}
       <div className="flex items-center justify-center gap-2">
         <div className="relative">
           <Input
@@ -97,11 +97,13 @@ export default function PercentageInput({
             step={step}
             disabled={disabled}
             className={cn(
-              "w-24 text-center text-lg font-semibold pr-6",
+              // Mobile-optimized: larger touch target and text
+              "w-28 sm:w-24 h-12 sm:h-10 text-center text-xl sm:text-lg font-semibold pr-8 sm:pr-6",
+              "touch-manipulation",
               getColorClass(displayValue)
             )}
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-base">
             %
           </span>
         </div>

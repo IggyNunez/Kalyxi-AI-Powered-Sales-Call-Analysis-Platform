@@ -58,25 +58,28 @@ export default function ChecklistInput({
               disabled={disabled}
               onClick={() => toggleItem(item.id)}
               className={cn(
-                "w-full flex items-start gap-3 p-3 rounded-lg border transition-all text-left",
+                // Mobile-optimized: minimum touch target, larger padding on mobile
+                "w-full flex items-start gap-3 min-h-12 p-3 sm:p-3 rounded-lg border transition-all text-left",
                 "hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                // Active state feedback for touch
+                "active:scale-[0.99] touch-manipulation",
                 isChecked
                   ? "border-primary/50 bg-primary/5"
                   : "border-muted",
                 disabled && "opacity-50 cursor-not-allowed"
               )}
             >
-              <div className="mt-0.5">
+              <div className="mt-0.5 shrink-0">
                 {isChecked ? (
-                  <CheckSquare className="h-5 w-5 text-primary" />
+                  <CheckSquare className="h-6 w-6 sm:h-5 sm:w-5 text-primary" />
                 ) : (
-                  <Square className="h-5 w-5 text-muted-foreground" />
+                  <Square className="h-6 w-6 sm:h-5 sm:w-5 text-muted-foreground" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <p
                   className={cn(
-                    "font-medium",
+                    "font-medium text-base sm:text-sm",
                     isChecked && "text-primary"
                   )}
                 >
@@ -84,7 +87,7 @@ export default function ChecklistInput({
                 </p>
               </div>
               {item.points !== undefined && (
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-muted-foreground shrink-0">
                   {item.points} pts
                 </span>
               )}

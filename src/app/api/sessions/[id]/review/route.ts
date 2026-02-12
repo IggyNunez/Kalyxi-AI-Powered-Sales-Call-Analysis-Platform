@@ -79,17 +79,14 @@ export async function POST(request: Request, { params }: RouteParams) {
         status: "reviewed",
         reviewed_at: new Date().toISOString(),
         reviewed_by: user!.id,
-        reviewer_notes: reviewer_notes || session.reviewer_notes,
-        reviewer_rating: rating || session.reviewer_rating,
+        reviewer_notes: reviewer_notes !== undefined ? reviewer_notes : session.reviewer_notes,
+        reviewer_rating: rating !== undefined ? rating : session.reviewer_rating,
       })
       .eq("id", id)
       .select(
         `
         *,
-        templates:template_id (id, name, use_case, scoring_method),
-        coach:coach_id (id, full_name, email),
-        agent:agent_id (id, full_name, email),
-        reviewer:reviewed_by (id, full_name, email)
+        templates (id, name, use_case, scoring_method)
       `
       )
       .single();
@@ -97,6 +94,32 @@ export async function POST(request: Request, { params }: RouteParams) {
     if (error) {
       console.error("Error reviewing session:", error);
       return errorResponse("Failed to review session", 500);
+    }
+
+    // Fetch user data for coach, agent, and reviewer
+    const userIds = [updatedSession.coach_id, updatedSession.agent_id, updatedSession.reviewed_by].filter(Boolean) as string[];
+    let sessionWithUsers = {
+      ...updatedSession,
+      coach: null as { id: string; name: string; email: string } | null,
+      agent: null as { id: string; name: string; email: string } | null,
+      reviewer: null as { id: string; name: string; email: string } | null,
+    };
+
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from("users")
+        .select("id, name, email")
+        .in("id", userIds);
+
+      if (users) {
+        const userMap = new Map<string, { id: string; name: string; email: string }>();
+        for (const u of users) {
+          userMap.set(u.id, u);
+        }
+        sessionWithUsers.coach = updatedSession.coach_id ? userMap.get(updatedSession.coach_id) || null : null;
+        sessionWithUsers.agent = updatedSession.agent_id ? userMap.get(updatedSession.agent_id) || null : null;
+        sessionWithUsers.reviewer = updatedSession.reviewed_by ? userMap.get(updatedSession.reviewed_by) || null : null;
+      }
     }
 
     // Session audit log
@@ -123,7 +146,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       request
     );
 
-    return successResponse(updatedSession);
+    return successResponse(sessionWithUsers);
   } catch (error) {
     console.error("Error reviewing session:", error);
     return errorResponse("Failed to review session", 500);

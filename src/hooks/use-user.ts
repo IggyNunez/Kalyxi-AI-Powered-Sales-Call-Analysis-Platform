@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import { User, UserRole, Organization } from "@/types/database";
@@ -25,7 +25,8 @@ export function useUser(): UseUserReturn {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const supabase = createClient();
+  // Memoize supabase client to prevent creating new instance on every render
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchUserData = useCallback(async (authUser: SupabaseUser) => {
     // Sanitize userId to remove any potential :1 suffix from Supabase caching

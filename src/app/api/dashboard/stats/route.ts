@@ -139,6 +139,25 @@ export async function GET(request: Request) {
 
     callsOverTime.sort((a, b) => a.date.localeCompare(b.date));
 
+    // Get session counts for coaching platform
+    let pendingSessionsCount = 0;
+    let inProgressSessionsCount = 0;
+    let completedSessionsCount = 0;
+
+    // Fetch session counts
+    const { data: sessionCounts } = await supabase
+      .from("sessions")
+      .select("status")
+      .eq("org_id", orgId!);
+
+    if (sessionCounts) {
+      sessionCounts.forEach((s) => {
+        if (s.status === "pending") pendingSessionsCount++;
+        else if (s.status === "in_progress") inProgressSessionsCount++;
+        else if (s.status === "completed" || s.status === "reviewed") completedSessionsCount++;
+      });
+    }
+
     // Get recent high scores for leaderboard snippet
     let recentScores: Array<{
       callerId: string;
@@ -199,6 +218,11 @@ export async function GET(request: Request) {
         callsOverTime,
         recentScores,
         period,
+        // Session counts for coaching platform
+        pendingSessionsCount,
+        inProgressSessionsCount,
+        completedSessionsCount,
+        totalActiveSessionsCount: pendingSessionsCount + inProgressSessionsCount,
       },
     });
   } catch (error) {

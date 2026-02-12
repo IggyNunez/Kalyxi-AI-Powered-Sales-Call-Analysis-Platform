@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -12,6 +12,8 @@ import {
   HelpCircle,
   X,
 } from "lucide-react";
+import { useScoringState } from "@/hooks/use-scoring-state";
+import { ScoringProgressHeader } from "./scoring-progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +103,30 @@ export default function ScoringInterface({
   const [showComments, setShowComments] = useState<Set<string>>(new Set());
   const [localScores, setLocalScores] = useState<Map<string, LocalScore>>(new Map());
   const [isCompleting, setIsCompleting] = useState(false);
+
+  // Refs for scroll-to functionality and intersection observer
+  const progressHeaderRef = useRef<HTMLDivElement>(null);
+  const criteriaRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Scoring state for real-time progress tracking
+  const scoringState = useScoringState({
+    template,
+    criteria,
+    localScores,
+  });
+
+  // Scroll to a specific criteria card
+  const scrollToCriteria = useCallback((criteriaId: string) => {
+    const element = criteriaRefs.current.get(criteriaId);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Briefly highlight the element
+      element.classList.add("ring-2", "ring-primary", "ring-offset-2");
+      setTimeout(() => {
+        element.classList.remove("ring-2", "ring-primary", "ring-offset-2");
+      }, 2000);
+    }
+  }, []);
 
   // Initialize local scores from initial scores
   useEffect(() => {
@@ -408,25 +434,54 @@ export default function ScoringInterface({
     const settings = template.settings as { allow_na?: boolean };
     const allowNa = settings?.allow_na !== false;
 
+    // Check if this criteria has triggered auto-fail
+    const isAutoFailTriggered = scoringState.autoFailCriteriaIds.includes(criterion.id);
+    // Check if this is an unscored required criteria
+    const isUnscoredRequired = scoringState.unscoredRequiredIds.includes(criterion.id);
+
     return (
-      <Card key={criterion.id} className={cn(
-        "transition-all",
-        criterion.is_auto_fail && "border-red-500/30"
-      )}>
+      <Card
+        key={criterion.id}
+        ref={(el) => {
+          if (el) {
+            criteriaRefs.current.set(criterion.id, el);
+          }
+        }}
+        className={cn(
+          "transition-all duration-300",
+          // Auto-fail triggered - red pulsing border
+          isAutoFailTriggered && "border-red-500 ring-2 ring-red-500/30 animate-pulse",
+          // Auto-fail capable but not triggered
+          criterion.is_auto_fail && !isAutoFailTriggered && "border-red-500/30",
+          // Unscored required - amber left border
+          isUnscoredRequired && "border-l-4 border-l-amber-500"
+        )}>
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h4 className="font-medium">{criterion.name}</h4>
                 {criterion.is_required && (
-                  <Badge variant="outline" className="text-xs">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-xs",
+                      isUnscoredRequired && "border-amber-500 text-amber-600 animate-pulse"
+                    )}
+                  >
                     Required
                   </Badge>
                 )}
                 {criterion.is_auto_fail && (
-                  <Badge variant="destructive" className="text-xs gap-1">
+                  <Badge
+                    variant="destructive"
+                    className={cn(
+                      "text-xs gap-1",
+                      isAutoFailTriggered && "animate-pulse"
+                    )}
+                  >
                     <AlertTriangle className="h-3 w-3" />
-                    Auto-fail
+                    {isAutoFailTriggered ? "Auto-fail Triggered!" : "Auto-fail"}
                   </Badge>
                 )}
                 <Badge variant="secondary" className="text-xs font-mono">
@@ -536,6 +591,26 @@ export default function ScoringInterface({
   return (
     <TooltipProvider>
       <div className="space-y-6">
+        {/* Progress Header with sticky behavior */}
+        <div ref={progressHeaderRef}>
+          <ScoringProgressHeader
+            totalCriteria={scoringState.totalCriteria}
+            scoredCriteria={scoringState.scoredCriteria}
+            requiredCriteria={scoringState.requiredCriteria}
+            scoredRequired={scoringState.scoredRequired}
+            projectedScore={scoringState.projectedScore}
+            isPassing={scoringState.isPassing}
+            passThreshold={scoringState.passThreshold}
+            autoFailTriggered={scoringState.autoFailTriggered}
+            autoFailCriteriaIds={scoringState.autoFailCriteriaIds}
+            autoFailCriteriaNames={scoringState.autoFailCriteriaNames}
+            nextUnscoredId={scoringState.nextUnscoredId}
+            nextUnscoredRequiredId={scoringState.nextUnscoredRequiredId}
+            onScrollToCriteria={scrollToCriteria}
+            observeRef={progressHeaderRef}
+          />
+        </div>
+
         {/* Grouped Criteria */}
         {groupedCriteria.map(({ group, criteria: groupCriteria }) => (
           <Collapsible
@@ -601,21 +676,59 @@ export default function ScoringInterface({
           </div>
         )}
 
-        {/* Complete Button */}
+        {/* Complete Button with Score Preview */}
         {!disabled && (
           <div className="sticky bottom-4 flex justify-end">
             <Card className="inline-flex items-center gap-4 p-4 shadow-lg">
-              {!allRequiredScored && (
-                <span className="text-sm text-amber-600 flex items-center gap-1">
+              {/* Score Preview */}
+              {scoringState.projectedScore && scoringState.scoredCriteria > 0 && (
+                <div className="flex items-center gap-2 pr-4 border-r">
+                  <span className={cn(
+                    "text-2xl font-bold",
+                    scoringState.autoFailTriggered
+                      ? "text-red-500"
+                      : scoringState.isPassing
+                      ? "text-emerald-500"
+                      : "text-amber-500"
+                  )}>
+                    {Math.round(scoringState.projectedScore.percentage_score)}%
+                  </span>
+                  <span className={cn(
+                    "text-sm font-medium",
+                    scoringState.autoFailTriggered
+                      ? "text-red-500"
+                      : scoringState.isPassing
+                      ? "text-emerald-500"
+                      : "text-amber-500"
+                  )}>
+                    {scoringState.autoFailTriggered
+                      ? "Fail"
+                      : scoringState.isPassing
+                      ? "Pass"
+                      : "Below Threshold"}
+                  </span>
+                </div>
+              )}
+
+              {/* Warning messages */}
+              {scoringState.autoFailTriggered && (
+                <span className="text-sm text-red-500 flex items-center gap-1">
                   <AlertTriangle className="h-4 w-4" />
-                  Complete all required criteria
+                  Auto-fail triggered
                 </span>
               )}
+              {!scoringState.allRequiredScored && !scoringState.autoFailTriggered && (
+                <span className="text-sm text-amber-600 flex items-center gap-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  {scoringState.scoredRequired}/{scoringState.requiredCriteria} required
+                </span>
+              )}
+
               <Button
                 variant="gradient"
                 size="lg"
                 onClick={handleComplete}
-                disabled={isCompleting || (!allRequiredScored && !(template.settings as { allow_partial_submission?: boolean })?.allow_partial_submission)}
+                disabled={isCompleting || !scoringState.canComplete}
               >
                 {isCompleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Complete Scoring

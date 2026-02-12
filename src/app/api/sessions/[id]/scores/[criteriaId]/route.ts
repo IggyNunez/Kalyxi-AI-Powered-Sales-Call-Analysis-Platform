@@ -124,6 +124,23 @@ export async function PUT(request: Request, { params }: RouteParams) {
       scored_at: new Date().toISOString(),
     };
 
+    // First check if criteria exists in the database (might not if using template snapshot)
+    const { data: criteriaExists } = await supabase
+      .from("criteria")
+      .select("id")
+      .eq("id", criteriaId)
+      .maybeSingle();
+
+    // If criteria doesn't exist in DB, we can't save due to foreign key
+    // This happens with demo data where criteria IDs are generated but not in the criteria table
+    if (!criteriaExists) {
+      console.error("Criteria not found in database:", criteriaId);
+      return errorResponse(
+        "Criteria not found in database. This may happen with demo data - please create a real template first.",
+        400
+      );
+    }
+
     const { data: savedScore, error } = await supabase
       .from("scores")
       .upsert(scoreData, {
@@ -140,7 +157,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
     if (error) {
       console.error("Error saving score:", error);
-      return errorResponse("Failed to save score", 500);
+      return errorResponse(`Failed to save score: ${error.message}`, 500);
     }
 
     // Log score update to session audit log

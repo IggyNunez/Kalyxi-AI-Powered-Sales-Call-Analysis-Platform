@@ -9,6 +9,7 @@ import { Mail, Lock, Loader2, AlertCircle, Sparkles, ArrowRight, Zap, Shield, Ba
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OAuthButtons } from "@/components/auth/OAuthButtons";
 import { cn } from "@/lib/utils";
 
 function LoginForm() {
@@ -288,16 +289,20 @@ function LoginForm() {
                 </div>
               </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-12 gap-2"
-                onClick={handleMagicLink}
-                disabled={loading}
-              >
-                <Sparkles className="h-4 w-4" />
-                Send Magic Link
-              </Button>
+              <div className="space-y-3">
+                <OAuthButtons redirectTo={searchParams.get("redirect") || undefined} />
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-12 gap-2"
+                  onClick={handleMagicLink}
+                  disabled={loading}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Send Magic Link
+                </Button>
+              </div>
             </>
           )}
 

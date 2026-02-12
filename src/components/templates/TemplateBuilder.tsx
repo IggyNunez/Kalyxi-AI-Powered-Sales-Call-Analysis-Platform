@@ -779,7 +779,7 @@ export default function TemplateBuilder({ isNew }: TemplateBuilderProps) {
 
                 {/* Weight breakdown by criteria */}
                 <div className="pt-4 border-t space-y-2">
-                  {criteria
+                  {[...criteria]
                     .sort((a, b) => b.weight - a.weight)
                     .slice(0, 5)
                     .map((c) => (

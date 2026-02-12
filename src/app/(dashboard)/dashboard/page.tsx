@@ -24,6 +24,7 @@ import {
   ChevronRight,
   Flame,
   Star,
+  ClipboardCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -701,6 +702,20 @@ export default function DashboardPage() {
                         <Lightbulb className="h-4 w-4 text-amber-500" />
                       </div>
                       <span className="font-medium">AI Insights</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </Link>
+                <Link href="/dashboard/sessions/new">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between h-auto py-3 px-3 hover:bg-primary/5"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                        <ClipboardCheck className="h-4 w-4 text-purple-500" />
+                      </div>
+                      <span className="font-medium">New Session</span>
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </Button>

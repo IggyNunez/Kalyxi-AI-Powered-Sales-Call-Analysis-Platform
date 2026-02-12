@@ -109,8 +109,8 @@ export async function GET(
     // Get user profiles for names
     const agentIds = [...new Set(sessions?.map((s) => s.agent_id).filter(Boolean) as string[])];
     const { data: profiles } = await supabase
-      .from("user_profiles")
-      .select("id, full_name, email")
+      .from("users")
+      .select("id, name, email")
       .in("id", agentIds.length > 0 ? agentIds : ["placeholder"]);
 
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
@@ -248,7 +248,7 @@ export async function GET(
           const profile = profileMap.get(s.agent_id);
           agentStats[s.agent_id] = {
             id: s.agent_id,
-            name: profile?.full_name || profile?.email || "Unknown",
+            name: profile?.name || profile?.email || "Unknown",
             sessions: 0,
             scores: [],
             passing: 0,

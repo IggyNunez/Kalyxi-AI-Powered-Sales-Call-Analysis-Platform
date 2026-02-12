@@ -11,7 +11,6 @@ import {
   createAuditLog,
 } from "@/lib/api-utils";
 import { z } from "zod";
-import { SessionStatus } from "@/types/database";
 
 // Validation schema for creating sessions
 const sessionSchema = z.object({
@@ -53,7 +52,7 @@ export async function GET(request: Request) {
     );
 
     // Filters
-    const status = searchParams.get("status") as SessionStatus | null;
+    const statusParam = searchParams.get("status");
     const templateId = searchParams.get("template_id");
     const coachId = searchParams.get("coach_id");
     const agentId = searchParams.get("agent_id");
@@ -63,23 +62,29 @@ export async function GET(request: Request) {
     const dateTo = searchParams.get("date_to");
     const mySessionsOnly = searchParams.get("my_sessions") === "true";
 
+    // Note: sessions.coach_id and sessions.agent_id reference auth.users, not public.users
+    // So we can't use automatic Supabase joins for those. We fetch sessions first,
+    // then separately fetch user data and merge it.
     let query = supabase
       .from("sessions")
       .select(
         `
         *,
-        templates:template_id (id, name, use_case, scoring_method),
-        coach:coach_id (id, name, email),
-        agent:agent_id (id, name, email),
-        calls:call_id (id, customer_name, call_timestamp)
+        templates (id, name, use_case, scoring_method),
+        calls (id, customer_name, call_timestamp)
       `,
         { count: "exact" }
       )
       .eq("org_id", orgId!);
 
-    // Apply filters
-    if (status) {
-      query = query.eq("status", status);
+    // Apply filters - support comma-separated status values
+    if (statusParam) {
+      const statuses = statusParam.split(",").map(s => s.trim()).filter(Boolean);
+      if (statuses.length === 1) {
+        query = query.eq("status", statuses[0]);
+      } else if (statuses.length > 1) {
+        query = query.in("status", statuses);
+      }
     }
 
     if (templateId && isValidUUID(templateId)) {
@@ -127,8 +132,43 @@ export async function GET(request: Request) {
       return errorResponse("Failed to fetch sessions", 500);
     }
 
+    // Fetch coach and agent user data separately
+    // (sessions.coach_id and agent_id reference auth.users, not public.users directly)
+    let sessionsWithUsers = sessions || [];
+
+    if (sessions && sessions.length > 0) {
+      // Collect unique user IDs
+      const userIds = new Set<string>();
+      for (const session of sessions) {
+        if (session.coach_id) userIds.add(session.coach_id);
+        if (session.agent_id) userIds.add(session.agent_id);
+      }
+
+      if (userIds.size > 0) {
+        const { data: users } = await supabase
+          .from("users")
+          .select("id, name, email")
+          .in("id", Array.from(userIds));
+
+        // Create a lookup map
+        const userMap = new Map<string, { id: string; name: string; email: string }>();
+        if (users) {
+          for (const u of users) {
+            userMap.set(u.id, u);
+          }
+        }
+
+        // Merge user data into sessions
+        sessionsWithUsers = sessions.map((session) => ({
+          ...session,
+          coach: session.coach_id ? userMap.get(session.coach_id) || null : null,
+          agent: session.agent_id ? userMap.get(session.agent_id) || null : null,
+        }));
+      }
+    }
+
     return NextResponse.json({
-      data: sessions,
+      data: sessionsWithUsers,
       pagination: {
         page,
         pageSize,
@@ -224,6 +264,14 @@ export async function POST(request: Request) {
       .eq("template_id", sessionData.template_id)
       .order("sort_order", { ascending: true });
 
+    // Validate template has criteria
+    if (!criteria || criteria.length === 0) {
+      return errorResponse(
+        "Cannot create session: Template has no criteria. Please add criteria to the template first.",
+        400
+      );
+    }
+
     // Create template snapshot
     const templateSnapshot = {
       template: {
@@ -260,10 +308,8 @@ export async function POST(request: Request) {
       .select(
         `
         *,
-        templates:template_id (id, name, use_case, scoring_method),
-        coach:coach_id (id, name, email),
-        agent:agent_id (id, name, email),
-        calls:call_id (id, customer_name, call_timestamp)
+        templates (id, name, use_case, scoring_method),
+        calls (id, customer_name, call_timestamp)
       `
       )
       .single();
@@ -271,6 +317,26 @@ export async function POST(request: Request) {
     if (error) {
       console.error("Error creating session:", error);
       return errorResponse("Failed to create session", 500);
+    }
+
+    // Fetch coach and agent user data separately
+    const userIds = [session.coach_id, session.agent_id].filter(Boolean);
+    let sessionWithUsers = { ...session, coach: null as { id: string; name: string; email: string } | null, agent: null as { id: string; name: string; email: string } | null };
+
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from("users")
+        .select("id, name, email")
+        .in("id", userIds);
+
+      if (users) {
+        const userMap = new Map<string, { id: string; name: string; email: string }>();
+        for (const u of users) {
+          userMap.set(u.id, u);
+        }
+        sessionWithUsers.coach = session.coach_id ? userMap.get(session.coach_id) || null : null;
+        sessionWithUsers.agent = session.agent_id ? userMap.get(session.agent_id) || null : null;
+      }
     }
 
     // Create audit log entry
@@ -297,7 +363,7 @@ export async function POST(request: Request) {
       request
     );
 
-    return successResponse(session, 201);
+    return successResponse(sessionWithUsers, 201);
   } catch (error) {
     console.error("Error creating session:", error);
     return errorResponse("Failed to create session", 500);

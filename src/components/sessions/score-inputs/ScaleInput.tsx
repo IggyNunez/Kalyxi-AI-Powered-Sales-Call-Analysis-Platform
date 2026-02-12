@@ -41,17 +41,21 @@ export default function ScaleInput({
               disabled={disabled}
               onClick={() => onChange(option)}
               className={cn(
-                "flex flex-col items-center justify-center min-w-[48px] px-3 py-2 rounded-lg border-2 transition-all",
+                // Mobile-optimized: 48px minimum touch target, larger on mobile
+                "flex flex-col items-center justify-center min-w-[48px] min-h-[48px] sm:min-h-[44px]",
+                "px-3 sm:px-4 py-2 sm:py-3 rounded-lg border-2 transition-all",
                 "hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                // Active state feedback for touch
+                "active:scale-95 touch-manipulation",
                 isSelected
                   ? "border-primary bg-primary/10 text-primary font-medium"
                   : "border-muted hover:bg-muted/50",
                 disabled && "opacity-50 cursor-not-allowed"
               )}
             >
-              <span className="text-lg font-semibold">{option}</span>
+              <span className="text-lg sm:text-xl font-semibold">{option}</span>
               {label && (
-                <span className="text-xs text-muted-foreground mt-0.5">
+                <span className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                   {label}
                 </span>
               )}

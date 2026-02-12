@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -12,6 +12,9 @@ import {
   User,
   Target,
   Loader2,
+  Phone,
+  LinkIcon,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,17 +39,31 @@ interface TeamMember {
   avatar_url?: string;
 }
 
+interface LinkedCall {
+  id: string;
+  title: string;
+  caller_name: string;
+  created_at: string;
+}
+
 export default function NewSessionPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [linkedCall, setLinkedCall] = useState<LinkedCall | null>(null);
+
+  // URL params for linking to a call
+  const callId = searchParams.get("call_id");
+  const callerId = searchParams.get("caller_id");
+  const callerName = searchParams.get("caller_name");
 
   // Form state
   const [templateId, setTemplateId] = useState<string>("");
-  const [agentId, setAgentId] = useState<string>("");
+  const [agentId, setAgentId] = useState<string>(callerId || "");
   const [coachId, setCoachId] = useState<string>("");
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
@@ -67,6 +84,25 @@ export default function NewSessionPage() {
           const data = await teamRes.json();
           setTeamMembers(data.data || data);
         }
+
+        // Fetch linked call info if call_id is provided
+        if (callId) {
+          const callRes = await fetch(`/api/calls/${callId}`);
+          if (callRes.ok) {
+            const callData = await callRes.json();
+            setLinkedCall({
+              id: callData.data.id,
+              title: callData.data.title || "Call Recording",
+              caller_name: callData.data.caller?.name || callerName || "Unknown",
+              created_at: callData.data.created_at,
+            });
+
+            // Pre-fill agent if we have caller info from the call and no caller_id URL param
+            if (callData.data.caller?.id && !callerId) {
+              setAgentId(callData.data.caller.id);
+            }
+          }
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -75,7 +111,7 @@ export default function NewSessionPage() {
     };
 
     fetchData();
-  }, []);
+  }, [callId, callerId, callerName]);
 
   // Set default coach to current user
   useEffect(() => {
@@ -102,6 +138,7 @@ export default function NewSessionPage() {
           template_id: templateId,
           agent_id: agentId || null,
           coach_id: coachId || user?.id,
+          call_id: callId || null,
           scheduled_at: scheduledAt || null,
           notes: notes || null,
         }),
@@ -291,8 +328,44 @@ export default function NewSessionPage() {
             </div>
           </div>
 
-          {/* Sidebar - Template Preview */}
+          {/* Sidebar - Template Preview & Linked Call */}
           <div className="space-y-4">
+            {/* Linked Call Card */}
+            {linkedCall && (
+              <Card className="border-primary/30 bg-primary/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <LinkIcon className="h-4 w-4 text-primary" />
+                    Linked Call
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Phone className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{linkedCall.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {linkedCall.caller_name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(linkedCall.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/dashboard/calls/${linkedCall.id}`}
+                    target="_blank"
+                    className="flex items-center gap-1 text-sm text-primary hover:underline"
+                  >
+                    View Call
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </CardContent>
+              </Card>
+            )}
+
             {selectedTemplate && (
               <Card>
                 <CardHeader className="pb-3">

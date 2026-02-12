@@ -32,6 +32,8 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDuration, formatDateTime, getScoreColor } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
+import { LinkedSessionsPanel } from "@/components/calls/LinkedSessionsPanel";
+import { CreateSessionFromCallButton } from "@/components/calls/CreateSessionFromCallButton";
 import type { Call, Analysis } from "@/types";
 
 // Score Ring Component for visual display
@@ -223,6 +225,14 @@ export default function CallDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <CreateSessionFromCallButton
+                callId={call.id}
+                callerId={call.caller?.id}
+                callerName={call.caller?.name}
+                variant="ghost"
+                size="sm"
+                className="text-white hover:bg-white/20 border-0"
+              />
               <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
                 <Share2 className="h-5 w-5" />
               </Button>
@@ -759,7 +769,23 @@ export default function CallDetailPage() {
               </Card>
             </TabsContent>
           </Tabs>
+
+          {/* Linked Coaching Sessions */}
+          <LinkedSessionsPanel
+            callId={call.id}
+            callerId={call.caller?.id}
+            callerName={call.caller?.name}
+          />
         </>
+      )}
+
+      {/* Show LinkedSessionsPanel even for non-analyzed calls */}
+      {(call.status === "pending" || call.status === "processing" || call.status === "failed") && (
+        <LinkedSessionsPanel
+          callId={call.id}
+          callerId={call.caller?.id}
+          callerName={call.caller?.name}
+        />
       )}
     </div>
   );

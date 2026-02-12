@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Chrome,
 } from "lucide-react";
+import { CalendarSyncSection } from "@/components/google";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -257,9 +258,9 @@ export default function GoogleConnectionsPage() {
     <div className="animate-fade-in max-w-4xl">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Google Meet Integration</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Google Integration</h1>
         <p className="text-muted-foreground mt-1">
-          Connect your Google account to automatically sync meeting transcripts
+          Connect your Google account to sync calendar events and meeting transcripts
         </p>
       </div>
 
@@ -378,6 +379,13 @@ export default function GoogleConnectionsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Calendar Sync Section */}
+      <CalendarSyncSection
+        hasConnection={connections.length > 0}
+        onSuccess={setSuccessMessage}
+        onError={setErrorMessage}
+      />
 
       {/* Extension Tokens Card */}
       <Card className="mb-6">

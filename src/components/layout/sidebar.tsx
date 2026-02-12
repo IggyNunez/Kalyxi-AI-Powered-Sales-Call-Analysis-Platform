@@ -23,12 +23,14 @@ import {
   X,
   PanelLeftClose,
   PanelLeft,
+  UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useSidebar } from "@/components/providers/sidebar-provider";
+import { useSessionCount } from "@/hooks/use-session-count";
 import { UserRole } from "@/types/database";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -41,6 +43,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   roles?: UserRole[];
+  badge?: number | null;
 }
 
 const navigation: NavItem[] = [
@@ -55,6 +58,24 @@ const navigation: NavItem[] = [
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Insights", href: "/dashboard/insights", icon: TrendingUp },
   { name: "Reports", href: "/dashboard/reports", icon: FileText },
+  // Coaching Platform
+  {
+    name: "Templates",
+    href: "/dashboard/templates",
+    icon: ClipboardList,
+    roles: ["admin", "superadmin", "manager", "coach"],
+  },
+  {
+    name: "Sessions",
+    href: "/dashboard/sessions",
+    icon: ClipboardCheck,
+  },
+  {
+    name: "Team Analytics",
+    href: "/dashboard/team/analytics",
+    icon: UsersRound,
+    roles: ["admin", "superadmin"],
+  },
   {
     name: "Callers",
     href: "/dashboard/callers",
@@ -65,6 +86,7 @@ const navigation: NavItem[] = [
     name: "Scorecard",
     href: "/dashboard/scorecard",
     icon: ClipboardList,
+    roles: ["admin", "superadmin"], // Legacy scorecard - hide from non-admins
   },
   {
     name: "Webhooks",
@@ -96,12 +118,14 @@ function NavLink({
   isCollapsed,
   index,
   variant = "default",
+  badge,
 }: {
   item: NavItem;
   isActive: boolean;
   isCollapsed: boolean;
   index: number;
   variant?: "default" | "admin";
+  badge?: number | null;
 }) {
   const { closeMobile } = useSidebar();
 
@@ -112,6 +136,8 @@ function NavLink({
 
   const iconHoverColor =
     variant === "admin" ? "group-hover:text-amber-400" : "group-hover:text-purple-400";
+
+  const showBadge = badge !== undefined && badge !== null && badge > 0;
 
   const content = (
     <Link
@@ -127,19 +153,36 @@ function NavLink({
       )}
       style={{ animationDelay: `${index * 50}ms` }}
     >
-
-      <item.icon
-        className={cn(
-          "relative h-5 w-5 flex-shrink-0 transition-all duration-200",
-          isActive ? "text-white" : `text-gray-500 ${iconHoverColor}`,
-          "group-hover:scale-110"
+      <div className="relative">
+        <item.icon
+          className={cn(
+            "h-5 w-5 flex-shrink-0 transition-all duration-200",
+            isActive ? "text-white" : `text-gray-500 ${iconHoverColor}`,
+            "group-hover:scale-110"
+          )}
+        />
+        {/* Badge indicator on collapsed sidebar */}
+        {isCollapsed && showBadge && (
+          <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-purple-500 text-[10px] font-bold text-white px-1">
+            {badge}
+          </span>
         )}
-      />
+      </div>
 
       {!isCollapsed && (
         <>
           <span className="relative flex-1 truncate">{item.name}</span>
-          {isActive && <ChevronRight className="relative h-4 w-4 text-white/70" />}
+          {showBadge && (
+            <Badge
+              variant="secondary"
+              className="ml-auto bg-purple-500/20 text-purple-300 text-xs px-1.5 py-0"
+            >
+              {badge}
+            </Badge>
+          )}
+          {isActive && !showBadge && (
+            <ChevronRight className="relative h-4 w-4 text-white/70" />
+          )}
         </>
       )}
     </Link>
@@ -163,11 +206,20 @@ export function Sidebar() {
   const pathname = usePathname();
   const { profile, organization, role, isAdmin, isSuperadmin, signOut } = useAuth();
   const { isCollapsed, isMobileOpen, toggleCollapse, closeMobile } = useSidebar();
+  const { counts: sessionCounts } = useSessionCount();
 
   const canSee = (item: NavItem) => {
     if (!item.roles) return true;
     if (!role) return false;
     return item.roles.includes(role);
+  };
+
+  // Get badge count for specific nav items
+  const getBadge = (itemName: string): number | null => {
+    if (itemName === "Sessions" && sessionCounts.total > 0) {
+      return sessionCounts.total;
+    }
+    return null;
   };
 
   const filteredNavigation = navigation.filter(canSee);
@@ -309,6 +361,7 @@ export function Sidebar() {
                 isActive={isActive}
                 isCollapsed={isCollapsed}
                 index={index}
+                badge={getBadge(item.name)}
               />
             );
           })}

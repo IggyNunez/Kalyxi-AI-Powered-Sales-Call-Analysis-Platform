@@ -64,8 +64,8 @@ export async function GET(request: Request) {
 
     // Get user profiles
     const { data: profiles } = await supabase
-      .from("user_profiles")
-      .select("id, full_name, email, avatar_url")
+      .from("users")
+      .select("id, name, email, avatar_url")
       .eq("org_id", orgId!);
 
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
         const profile = profileMap.get(s.agent_id);
         agentStats[s.agent_id] = {
           id: s.agent_id,
-          name: profile?.full_name || profile?.email?.split("@")[0] || "Unknown",
+          name: profile?.name || profile?.email?.split("@")[0] || "Unknown",
           email: profile?.email || "",
           avatarUrl: profile?.avatar_url || null,
           sessions: 0,

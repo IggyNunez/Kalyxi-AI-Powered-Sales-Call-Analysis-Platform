@@ -63,9 +63,10 @@ export default function StarsInput({
         type="button"
         disabled={disabled}
         className={cn(
-          "relative p-0.5 transition-transform",
+          // Mobile-optimized: larger touch target with padding
+          "relative p-1.5 sm:p-1 transition-transform touch-manipulation",
           "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded",
-          !disabled && "hover:scale-110",
+          !disabled && "hover:scale-110 active:scale-95",
           disabled && "cursor-not-allowed"
         )}
         onClick={(e) => {
@@ -79,15 +80,17 @@ export default function StarsInput({
       >
         {isHalfFilled ? (
           <div className="relative">
-            <Star className="h-8 w-8 text-muted stroke-muted-foreground/30" />
+            {/* Mobile: 40px stars, Desktop: 32px stars */}
+            <Star className="h-10 w-10 sm:h-8 sm:w-8 text-muted stroke-muted-foreground/30" />
             <div className="absolute inset-0 overflow-hidden w-1/2">
-              <Star className="h-8 w-8 fill-amber-400 text-amber-400" />
+              <Star className="h-10 w-10 sm:h-8 sm:w-8 fill-amber-400 text-amber-400" />
             </div>
           </div>
         ) : (
           <Star
             className={cn(
-              "h-8 w-8 transition-colors",
+              // Mobile: 40px stars, Desktop: 32px stars
+              "h-10 w-10 sm:h-8 sm:w-8 transition-colors",
               isFilled
                 ? "fill-amber-400 text-amber-400"
                 : "text-muted stroke-muted-foreground/30"

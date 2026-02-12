@@ -45,8 +45,8 @@ export async function GET(
 
     // Get agent info
     const { data: agent, error: agentError } = await supabase
-      .from("user_profiles")
-      .select("id, full_name, email, role")
+      .from("users")
+      .select("id, name, email, role")
       .eq("id", agentId)
       .eq("org_id", orgId!)
       .single();
@@ -250,7 +250,7 @@ export async function GET(
     return NextResponse.json({
       agent: {
         id: agent.id,
-        name: agent.full_name || agent.email,
+        name: agent.name || agent.email,
         email: agent.email,
         role: agent.role,
       },

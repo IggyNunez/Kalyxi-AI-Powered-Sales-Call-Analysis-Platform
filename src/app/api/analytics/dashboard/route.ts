@@ -74,8 +74,8 @@ export async function GET(request: Request) {
 
     // Get users for agent/coach info
     const { data: profiles } = await supabase
-      .from("user_profiles")
-      .select("id, full_name, email")
+      .from("users")
+      .select("id, name, email")
       .eq("org_id", orgId!);
 
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
@@ -213,7 +213,7 @@ export async function GET(request: Request) {
         if (!coachStats[s.coach_id]) {
           coachStats[s.coach_id] = {
             id: s.coach_id,
-            name: profile?.full_name || profile?.email || "Unknown",
+            name: profile?.name || profile?.email || "Unknown",
             sessions: 0,
             avgScore: 0,
             scores: [],

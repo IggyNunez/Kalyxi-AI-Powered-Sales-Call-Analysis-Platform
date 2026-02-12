@@ -1,5 +1,9 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import { enableMapSet } from "immer";
+
+// Enable Immer MapSet plugin for Set/Map support in state
+enableMapSet();
 import {
   Template,
   CriteriaGroup,
@@ -418,9 +422,9 @@ export const useTemplateBuilderStore = create<TemplateBuilderState>()(
         const criteria = state.criteria.find((c) => c.id === criteriaId);
         if (criteria) {
           criteria.group_id = targetGroupId;
-          // Reorder within new group
-          const groupCriteria = state.criteria
-            .filter((c) => c.group_id === targetGroupId && c.id !== criteriaId)
+          // Reorder within new group - spread to avoid mutating read-only array
+          const groupCriteria = [...state.criteria
+            .filter((c) => c.group_id === targetGroupId && c.id !== criteriaId)]
             .sort((a, b) => a.sort_order - b.sort_order);
           groupCriteria.splice(targetIndex, 0, criteria);
           groupCriteria.forEach((c, i) => (c.sort_order = i));
@@ -433,8 +437,9 @@ export const useTemplateBuilderStore = create<TemplateBuilderState>()(
     // Reorder criteria within group
     reorderCriteria: (groupId, startIndex, endIndex) => {
       set((state) => {
-        const groupCriteria = state.criteria
-          .filter((c) => c.group_id === groupId)
+        // Spread to avoid mutating read-only array
+        const groupCriteria = [...state.criteria
+          .filter((c) => c.group_id === groupId)]
           .sort((a, b) => a.sort_order - b.sort_order);
         const [removed] = groupCriteria.splice(startIndex, 1);
         groupCriteria.splice(endIndex, 0, removed);
@@ -610,14 +615,14 @@ export const useTemplateBuilderStore = create<TemplateBuilderState>()(
     },
 
     getGroupCriteria: (groupId) => {
-      return get()
-        .criteria.filter((c) => c.group_id === groupId)
+      // Spread to return mutable array (not Immer read-only proxy)
+      return [...get().criteria.filter((c) => c.group_id === groupId)]
         .sort((a, b) => a.sort_order - b.sort_order);
     },
 
     getUngroupedCriteria: () => {
-      return get()
-        .criteria.filter((c) => c.group_id === null)
+      // Spread to return mutable array (not Immer read-only proxy)
+      return [...get().criteria.filter((c) => c.group_id === null)]
         .sort((a, b) => a.sort_order - b.sort_order);
     },
   }))

@@ -58,6 +58,8 @@ export async function GET(request: Request, { params }: RouteParams) {
         `
         id,
         status,
+        coach_id,
+        agent_id,
         google_event_id,
         google_event_title,
         google_event_start,
@@ -65,9 +67,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         created_at,
         total_score,
         percentage_score,
-        pass_status,
-        coach:coach_id (id, full_name, email),
-        agent:agent_id (id, full_name, email)
+        pass_status
       `,
         { count: "exact" }
       )
@@ -102,8 +102,38 @@ export async function GET(request: Request, { params }: RouteParams) {
       return errorResponse("Failed to fetch calendar events", 500);
     }
 
+    // Fetch user data for coach and agent
+    let eventsWithUsers = events || [];
+    if (events && events.length > 0) {
+      const userIds = new Set<string>();
+      for (const event of events) {
+        if (event.coach_id) userIds.add(event.coach_id);
+        if (event.agent_id) userIds.add(event.agent_id);
+      }
+
+      if (userIds.size > 0) {
+        const { data: users } = await supabase
+          .from("users")
+          .select("id, name, email")
+          .in("id", Array.from(userIds));
+
+        const userMap = new Map<string, { id: string; name: string; email: string }>();
+        if (users) {
+          for (const u of users) {
+            userMap.set(u.id, u);
+          }
+        }
+
+        eventsWithUsers = events.map((event) => ({
+          ...event,
+          coach: event.coach_id ? userMap.get(event.coach_id) || null : null,
+          agent: event.agent_id ? userMap.get(event.agent_id) || null : null,
+        }));
+      }
+    }
+
     return NextResponse.json({
-      data: events,
+      data: eventsWithUsers,
       calendarLink: {
         id: link.id,
         calendar_id: link.calendar_id,

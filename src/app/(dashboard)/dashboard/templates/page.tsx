@@ -17,6 +17,8 @@ import {
   Calendar,
   Filter,
   Search,
+  CheckCircle,
+  RotateCcw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -65,12 +67,16 @@ const statusColors: Record<TemplateStatus, string> = {
 function TemplateCard({
   template,
   onDuplicate,
+  onActivate,
   onArchive,
+  onRestore,
   onDelete,
 }: {
   template: Template;
   onDuplicate: (id: string) => void;
+  onActivate: (id: string) => void;
   onArchive: (id: string) => void;
+  onRestore: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
   const { isAdmin } = useAuth();
@@ -139,6 +145,18 @@ function TemplateCard({
                   Duplicate
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                {template.status === "draft" && (
+                  <DropdownMenuItem onClick={() => onActivate(template.id)}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Activate
+                  </DropdownMenuItem>
+                )}
+                {template.status === "archived" && (
+                  <DropdownMenuItem onClick={() => onRestore(template.id)}>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Restore
+                  </DropdownMenuItem>
+                )}
                 {template.status !== "archived" && (
                   <DropdownMenuItem onClick={() => onArchive(template.id)}>
                     <Archive className="h-4 w-4 mr-2" />
@@ -224,6 +242,21 @@ export default function TemplatesPage() {
     }
   };
 
+  const handleActivate = async (id: string) => {
+    try {
+      const response = await fetch(`/api/templates/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      });
+      if (response.ok) {
+        fetchTemplates();
+      }
+    } catch (error) {
+      console.error("Error activating template:", error);
+    }
+  };
+
   const handleArchive = async (id: string) => {
     try {
       const response = await fetch(`/api/templates/${id}`, {
@@ -236,6 +269,21 @@ export default function TemplatesPage() {
       }
     } catch (error) {
       console.error("Error archiving template:", error);
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      const response = await fetch(`/api/templates/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "draft" }),
+      });
+      if (response.ok) {
+        fetchTemplates();
+      }
+    } catch (error) {
+      console.error("Error restoring template:", error);
     }
   };
 
@@ -369,7 +417,9 @@ export default function TemplatesPage() {
               key={template.id}
               template={template}
               onDuplicate={handleDuplicate}
+              onActivate={handleActivate}
               onArchive={handleArchive}
+              onRestore={handleRestore}
               onDelete={handleDelete}
             />
           ))}

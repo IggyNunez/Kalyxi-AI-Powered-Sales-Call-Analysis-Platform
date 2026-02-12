@@ -26,6 +26,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -48,6 +64,13 @@ export default function OrganizationsPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [editPlan, setEditPlan] = useState("");
+  const [editName, setEditName] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     // Redirect non-superadmins
@@ -85,10 +108,75 @@ export default function OrganizationsPage() {
     switch (plan) {
       case "enterprise":
         return "gradient";
-      case "pro":
+      case "professional":
         return "default";
       default:
         return "secondary";
+    }
+  };
+
+  const handleViewDetails = (org: Organization) => {
+    setSelectedOrg(org);
+    setShowDetailsDialog(true);
+  };
+
+  const handleEdit = (org: Organization) => {
+    setSelectedOrg(org);
+    setEditName(org.name);
+    setEditPlan(org.plan);
+    setShowEditDialog(true);
+  };
+
+  const handleDelete = (org: Organization) => {
+    setSelectedOrg(org);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmEdit = async () => {
+    if (!selectedOrg) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/organizations/${selectedOrg.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName, plan: editPlan }),
+      });
+      if (res.ok) {
+        setOrganizations((orgs) =>
+          orgs.map((o) =>
+            o.id === selectedOrg.id ? { ...o, name: editName, plan: editPlan } : o
+          )
+        );
+        setShowEditDialog(false);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to update organization");
+      }
+    } catch (error) {
+      alert("Failed to update organization");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedOrg) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/organizations/${selectedOrg.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setOrganizations((orgs) => orgs.filter((o) => o.id !== selectedOrg.id));
+        setShowDeleteDialog(false);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete organization");
+      }
+    } catch (error) {
+      alert("Failed to delete organization");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -226,16 +314,19 @@ export default function OrganizationsPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleViewDetails(org)}>
                         <Eye className="mr-2 h-4 w-4" />
                         View Details
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleEdit(org)}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-600">
+                      <DropdownMenuItem
+                        className="text-red-600 focus:text-red-600"
+                        onClick={() => handleDelete(org)}
+                      >
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
                       </DropdownMenuItem>
@@ -269,6 +360,137 @@ export default function OrganizationsPage() {
           ))}
         </div>
       )}
+
+      {/* View Details Dialog */}
+      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white font-bold">
+                {selectedOrg?.name.charAt(0).toUpperCase()}
+              </div>
+              {selectedOrg?.name}
+            </DialogTitle>
+            <DialogDescription>Organization details</DialogDescription>
+          </DialogHeader>
+          {selectedOrg && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Slug</Label>
+                  <p className="font-medium">@{selectedOrg.slug}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Plan</Label>
+                  <Badge variant={getPlanBadgeVariant(selectedOrg.plan)} className="capitalize mt-1">
+                    {selectedOrg.plan}
+                  </Badge>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Users</Label>
+                  <p className="font-medium">{selectedOrg._count?.users || 0}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Calls</Label>
+                  <p className="font-medium">{selectedOrg._count?.calls || 0}</p>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-muted-foreground">Created</Label>
+                  <p className="font-medium">
+                    {new Date(selectedOrg.created_at).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-muted-foreground">Organization ID</Label>
+                  <p className="font-mono text-xs bg-muted p-2 rounded mt-1">{selectedOrg.id}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Organization</DialogTitle>
+            <DialogDescription>
+              Update organization details for {selectedOrg?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Organization Name</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Organization name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-plan">Plan</Label>
+              <Select value={editPlan} onValueChange={setEditPlan}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="free">Free</SelectItem>
+                  <SelectItem value="starter">Starter</SelectItem>
+                  <SelectItem value="professional">Professional</SelectItem>
+                  <SelectItem value="enterprise">Enterprise</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmEdit} disabled={actionLoading}>
+              {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Delete Organization</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{selectedOrg?.name}</strong>? This action
+              cannot be undone. All users, calls, and data associated with this organization
+              will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={actionLoading}
+            >
+              {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete Organization
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -70,10 +70,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       .select(
         `
         *,
-        templates:template_id (id, name, use_case, scoring_method, pass_threshold, settings),
-        coach:coach_id (id, name, email),
-        agent:agent_id (id, name, email),
-        calls:call_id (id, customer_name, call_timestamp, raw_notes)
+        templates (id, name, use_case, scoring_method, pass_threshold, settings),
+        calls (id, customer_name, call_timestamp, raw_notes)
       `
       )
       .single();
@@ -81,6 +79,26 @@ export async function POST(request: Request, { params }: RouteParams) {
     if (error) {
       console.error("Error starting session:", error);
       return errorResponse("Failed to start session", 500);
+    }
+
+    // Fetch coach and agent user data separately
+    const userIds = [updatedSession.coach_id, updatedSession.agent_id].filter(Boolean) as string[];
+    let sessionWithUsers = { ...updatedSession, coach: null as { id: string; name: string; email: string } | null, agent: null as { id: string; name: string; email: string } | null };
+
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from("users")
+        .select("id, name, email")
+        .in("id", userIds);
+
+      if (users) {
+        const userMap = new Map<string, { id: string; name: string; email: string }>();
+        for (const u of users) {
+          userMap.set(u.id, u);
+        }
+        sessionWithUsers.coach = updatedSession.coach_id ? userMap.get(updatedSession.coach_id) || null : null;
+        sessionWithUsers.agent = updatedSession.agent_id ? userMap.get(updatedSession.agent_id) || null : null;
+      }
     }
 
     // Session audit log
@@ -104,7 +122,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     );
 
     // Return session with template criteria for scoring interface
-    const result: Record<string, unknown> = { ...updatedSession };
+    const result: Record<string, unknown> = { ...sessionWithUsers };
 
     if (updatedSession.template_snapshot) {
       result.template_criteria =

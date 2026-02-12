@@ -58,7 +58,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       .select(
         `
         *,
-        templates:template_id (*)
+        templates!template_id (*)
       `
       )
       .eq("id", id)

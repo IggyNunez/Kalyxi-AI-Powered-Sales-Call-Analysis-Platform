@@ -14,7 +14,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatDistanceToNow } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatDistanceToNow, format } from "date-fns";
 
 interface TemplateVersion {
   id: string;
@@ -47,6 +54,7 @@ export default function TemplateVersionsPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [versions, setVersions] = useState<TemplateVersion[]>([]);
   const [templateName, setTemplateName] = useState("");
+  const [selectedVersion, setSelectedVersion] = useState<TemplateVersion | null>(null);
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 20,
@@ -172,10 +180,7 @@ export default function TemplateVersionsPage({ params }: PageProps) {
                     variant="ghost"
                     size="sm"
                     className="gap-1"
-                    onClick={() => {
-                      // Could show a modal with the version details
-                      console.log("View version:", version);
-                    }}
+                    onClick={() => setSelectedVersion(version)}
                   >
                     View Details
                     <ChevronRight className="h-4 w-4" />
@@ -186,6 +191,97 @@ export default function TemplateVersionsPage({ params }: PageProps) {
           ))}
         </div>
       )}
+
+      {/* Version Details Dialog */}
+      <Dialog open={!!selectedVersion} onOpenChange={() => setSelectedVersion(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitBranch className="h-5 w-5 text-primary" />
+              Version {selectedVersion?.version_number} Details
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh]">
+            {selectedVersion && (
+              <div className="space-y-6 p-1">
+                {/* Meta Info */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Created:</span>
+                    <p className="font-medium">
+                      {format(new Date(selectedVersion.created_at), "PPP 'at' p")}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Pass Threshold:</span>
+                    <p className="font-medium">
+                      {selectedVersion.snapshot?.template?.pass_threshold || 0}%
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Scoring Method:</span>
+                    <p className="font-medium capitalize">
+                      {selectedVersion.snapshot?.template?.scoring_method?.replace("_", " ") || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Change Summary:</span>
+                    <p className="font-medium">
+                      {selectedVersion.change_summary || "Published version"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Groups */}
+                {selectedVersion.snapshot?.groups && selectedVersion.snapshot.groups.length > 0 && (
+                  <div>
+                    <h4 className="font-medium mb-2 flex items-center gap-2">
+                      <Layers className="h-4 w-4" />
+                      Criteria Groups ({selectedVersion.snapshot.groups.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {selectedVersion.snapshot.groups.map((group) => (
+                        <div
+                          key={group.id}
+                          className="flex items-center gap-2 p-2 rounded-lg bg-muted/50"
+                        >
+                          <Badge variant="outline" className="text-xs">
+                            Group
+                          </Badge>
+                          <span className="text-sm">{group.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Criteria */}
+                {selectedVersion.snapshot?.criteria && selectedVersion.snapshot.criteria.length > 0 && (
+                  <div>
+                    <h4 className="font-medium mb-2 flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      Criteria ({selectedVersion.snapshot.criteria.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {selectedVersion.snapshot.criteria.map((criterion) => (
+                        <div
+                          key={criterion.id}
+                          className="flex items-center gap-2 p-2 rounded-lg bg-muted/50"
+                        >
+                          <Badge variant="secondary" className="text-xs">
+                            Criterion
+                          </Badge>
+                          <span className="text-sm">{criterion.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

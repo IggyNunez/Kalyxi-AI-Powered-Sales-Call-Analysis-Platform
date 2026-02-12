@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import {
@@ -21,6 +21,7 @@ import {
   FileText,
   Target,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -245,8 +246,10 @@ export default function SessionsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [templateFilter, setTemplateFilter] = useState<string>("all");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
@@ -264,7 +267,7 @@ export default function SessionsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, templateFilter]);
 
   const fetchTemplates = async () => {
     try {
@@ -282,13 +285,39 @@ export default function SessionsPage() {
     fetchTemplates();
   }, []);
 
+  // Fetch sessions on mount and when filters change
   useEffect(() => {
-    fetchSessions();
-  }, [statusFilter, templateFilter]);
+    fetchSessions(true);
+  }, [fetchSessions]);
+
+  // Auto-refresh every 30 seconds for dynamic updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchSessions(false); // Silent refresh (no loading state)
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [fetchSessions]);
+
+  // Refresh when window regains focus (user comes back to tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchSessions(false);
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [fetchSessions]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchSessions();
+    fetchSessions(false);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchSessions(false);
+    setIsRefreshing(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -299,7 +328,7 @@ export default function SessionsPage() {
         method: "DELETE",
       });
       if (response.ok) {
-        fetchSessions();
+        fetchSessions(false);
       }
     } catch (error) {
       console.error("Error deleting session:", error);
@@ -355,12 +384,23 @@ export default function SessionsPage() {
             Score and review coaching sessions
           </p>
         </div>
-        <Link href="/dashboard/sessions/new">
-          <Button variant="gradient" className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Session
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh sessions"
+          >
+            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
           </Button>
-        </Link>
+          <Link href="/dashboard/sessions/new">
+            <Button variant="gradient" className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Session
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}

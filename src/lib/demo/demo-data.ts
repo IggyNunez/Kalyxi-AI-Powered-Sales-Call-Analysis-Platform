@@ -47,6 +47,16 @@ export interface DemoResult {
     scorecards: number;
     scripts: number;
     insightTemplates: number;
+    // Coaching platform
+    templates: number;
+    criteriaGroups: number;
+    criteria: number;
+    sessions: number;
+    scores: number;
+    templateVersions: number;
+    // Extended data
+    callScoreResults: number;
+    meetTranscripts: number;
   };
   errors: string[];
 }
@@ -62,6 +72,16 @@ export interface DeleteResult {
     scorecards: number;
     scripts: number;
     insightTemplates: number;
+    // Coaching platform
+    templates: number;
+    criteriaGroups: number;
+    criteria: number;
+    sessions: number;
+    scores: number;
+    templateVersions: number;
+    // Extended data
+    callScoreResults: number;
+    meetTranscripts: number;
   };
 }
 
@@ -752,6 +772,354 @@ If no: "No problem. What would be a better time? And what can I send over in the
 }
 
 // ============================================================================
+// Coaching Platform Data Generation
+// ============================================================================
+
+// Template configurations for different use cases
+interface CriteriaConfig {
+  name: string;
+  type: CriteriaType;
+  weight: number;
+  is_required: boolean;
+  is_auto_fail?: boolean;
+  auto_fail_threshold?: number;
+  max_score?: number;
+}
+
+interface GroupConfig {
+  name: string;
+  description: string;
+  criteria: CriteriaConfig[];
+}
+
+interface TemplateConfig {
+  name: string;
+  description: string;
+  scoring_method: "weighted" | "simple_average" | "pass_fail" | "points" | "custom_formula";
+  use_case: "sales_call" | "onboarding" | "qa_review" | "training" | "custom";
+  pass_threshold: number;
+  groups: GroupConfig[];
+}
+
+const TEMPLATE_CONFIGS: TemplateConfig[] = [
+  {
+    name: "[Demo] Sales Call Scorecard",
+    description: "Comprehensive scorecard for evaluating outbound sales calls",
+    scoring_method: "weighted" as const,
+    use_case: "sales_call" as const,
+    pass_threshold: 70,
+    groups: [
+      {
+        name: "Call Opening",
+        description: "First impressions and rapport building",
+        criteria: [
+          { name: "Professional Greeting", type: "pass_fail" as const, weight: 5, is_required: true },
+          { name: "Rapport Building", type: "scale" as const, weight: 10, is_required: true, is_auto_fail: false },
+          { name: "Agenda Setting", type: "scale" as const, weight: 5, is_required: false },
+        ],
+      },
+      {
+        name: "Discovery",
+        description: "Understanding customer needs and pain points",
+        criteria: [
+          { name: "Discovery Questions Quality", type: "scale" as const, weight: 15, is_required: true, is_auto_fail: true, auto_fail_threshold: 40 },
+          { name: "Active Listening", type: "scale" as const, weight: 10, is_required: true },
+          { name: "Pain Points Identified", type: "checklist" as const, weight: 10, is_required: true },
+        ],
+      },
+      {
+        name: "Presentation",
+        description: "Value proposition and solution presentation",
+        criteria: [
+          { name: "Value Proposition Clarity", type: "scale" as const, weight: 15, is_required: true, is_auto_fail: true, auto_fail_threshold: 50 },
+          { name: "Feature-Benefit Alignment", type: "scale" as const, weight: 10, is_required: true },
+          { name: "Social Proof Usage", type: "pass_fail" as const, weight: 5, is_required: false },
+        ],
+      },
+      {
+        name: "Closing",
+        description: "Objection handling and next steps",
+        criteria: [
+          { name: "Objection Handling", type: "scale" as const, weight: 10, is_required: true },
+          { name: "Clear Next Steps", type: "pass_fail" as const, weight: 5, is_required: true, is_auto_fail: true },
+        ],
+      },
+    ],
+  },
+  {
+    name: "[Demo] Quick QA Checklist",
+    description: "Simple pass/fail quality assurance checklist",
+    scoring_method: "pass_fail" as const,
+    use_case: "qa_review" as const,
+    pass_threshold: 100,
+    groups: [
+      {
+        name: "Compliance",
+        description: "Regulatory and compliance requirements",
+        criteria: [
+          { name: "Proper Disclosure Given", type: "pass_fail" as const, weight: 25, is_required: true, is_auto_fail: true },
+          { name: "Customer Consent Obtained", type: "pass_fail" as const, weight: 25, is_required: true, is_auto_fail: true },
+          { name: "No Misleading Statements", type: "pass_fail" as const, weight: 25, is_required: true, is_auto_fail: true },
+          { name: "Call Recording Disclosure", type: "pass_fail" as const, weight: 25, is_required: true, is_auto_fail: true },
+        ],
+      },
+    ],
+  },
+  {
+    name: "[Demo] Onboarding Call Review",
+    description: "New employee onboarding call assessment",
+    scoring_method: "simple_average" as const,
+    use_case: "onboarding" as const,
+    pass_threshold: 60,
+    groups: [
+      {
+        name: "Product Knowledge",
+        description: "Understanding of product features and benefits",
+        criteria: [
+          { name: "Feature Knowledge", type: "rating_stars" as const, weight: 20, is_required: true },
+          { name: "Competitive Positioning", type: "rating_stars" as const, weight: 20, is_required: false },
+        ],
+      },
+      {
+        name: "Process Adherence",
+        description: "Following the sales process",
+        criteria: [
+          { name: "Script Adherence", type: "percentage" as const, weight: 30, is_required: true },
+          { name: "CRM Updates Completed", type: "pass_fail" as const, weight: 15, is_required: true },
+          { name: "Follow-up Scheduled", type: "pass_fail" as const, weight: 15, is_required: true },
+        ],
+      },
+    ],
+  },
+  {
+    name: "[Demo] Training Assessment",
+    description: "Points-based training evaluation",
+    scoring_method: "points" as const,
+    use_case: "training" as const,
+    pass_threshold: 75,
+    groups: [
+      {
+        name: "Knowledge Check",
+        description: "Understanding of key concepts",
+        criteria: [
+          { name: "Product Features", type: "scale" as const, weight: 25, is_required: true, max_score: 25 },
+          { name: "Pricing Knowledge", type: "scale" as const, weight: 25, is_required: true, max_score: 25 },
+          { name: "Competition Analysis", type: "scale" as const, weight: 25, is_required: false, max_score: 25 },
+          { name: "Process Understanding", type: "scale" as const, weight: 25, is_required: true, max_score: 25 },
+        ],
+      },
+    ],
+  },
+];
+
+// Session statuses with weights for realistic distribution
+const SESSION_STATUS_WEIGHTS = {
+  pending: 0.15,
+  in_progress: 0.10,
+  completed: 0.45,
+  reviewed: 0.20,
+  disputed: 0.05,
+  cancelled: 0.05,
+};
+
+type CriteriaType = "scale" | "pass_fail" | "checklist" | "text" | "dropdown" | "multi_select" | "rating_stars" | "percentage";
+
+// Generate criteria config based on type
+function generateCriteriaConfig(type: CriteriaType, rng: SeededRandom): Record<string, unknown> {
+  switch (type) {
+    case "scale":
+      return {
+        min: 1,
+        max: rng.choice([5, 10]),
+        step: 1,
+        labels: { "1": "Poor", "5": "Excellent", "10": "Outstanding" },
+      };
+    case "pass_fail":
+      return {
+        pass_label: "Pass",
+        fail_label: "Fail",
+        pass_value: 100,
+        fail_value: 0,
+      };
+    case "checklist":
+      return {
+        items: [
+          { id: uuidv4(), label: "Budget discussed", points: 25 },
+          { id: uuidv4(), label: "Timeline established", points: 25 },
+          { id: uuidv4(), label: "Decision maker identified", points: 25 },
+          { id: uuidv4(), label: "Next steps agreed", points: 25 },
+        ],
+        scoring: "sum",
+      };
+    case "rating_stars":
+      return {
+        max_stars: 5,
+        allow_half: true,
+      };
+    case "percentage":
+      return {
+        thresholds: [
+          { value: 80, label: "Excellent", color: "green" },
+          { value: 60, label: "Good", color: "blue" },
+          { value: 40, label: "Needs Improvement", color: "yellow" },
+          { value: 0, label: "Poor", color: "red" },
+        ],
+      };
+    case "dropdown":
+      return {
+        options: [
+          { value: "excellent", label: "Excellent", score: 100 },
+          { value: "good", label: "Good", score: 75 },
+          { value: "fair", label: "Fair", score: 50 },
+          { value: "poor", label: "Poor", score: 25 },
+        ],
+      };
+    case "multi_select":
+      return {
+        options: [
+          { value: "empathy", label: "Showed Empathy", score: 20 },
+          { value: "patience", label: "Demonstrated Patience", score: 20 },
+          { value: "clarity", label: "Clear Communication", score: 20 },
+          { value: "knowledge", label: "Product Knowledge", score: 20 },
+          { value: "solution", label: "Offered Solution", score: 20 },
+        ],
+      };
+    case "text":
+      return {
+        min_length: 10,
+        max_length: 500,
+        placeholder: "Enter your feedback...",
+      };
+    default:
+      return {};
+  }
+}
+
+// Generate score value based on criteria type
+function generateScoreValue(
+  type: CriteriaType,
+  config: Record<string, unknown>,
+  rng: SeededRandom,
+  targetPercentage: number
+): { value: Record<string, unknown>; rawScore: number; normalizedScore: number } {
+  const isGoodScore = rng.float(0, 100) < targetPercentage;
+
+  switch (type) {
+    case "scale": {
+      const max = (config.max as number) || 10;
+      const min = (config.min as number) || 1;
+      const value = isGoodScore
+        ? rng.int(Math.ceil((max - min) * 0.7) + min, max)
+        : rng.int(min, Math.floor((max - min) * 0.5) + min);
+      const normalizedScore = ((value - min) / (max - min)) * 100;
+      return { value: { value }, rawScore: value, normalizedScore };
+    }
+    case "pass_fail": {
+      const passed = isGoodScore ? rng.boolean(0.85) : rng.boolean(0.4);
+      return {
+        value: { passed },
+        rawScore: passed ? 100 : 0,
+        normalizedScore: passed ? 100 : 0,
+      };
+    }
+    case "checklist": {
+      const items = (config.items as Array<{ id: string; points: number }>) || [];
+      const numChecked = isGoodScore
+        ? rng.int(Math.ceil(items.length * 0.7), items.length)
+        : rng.int(0, Math.floor(items.length * 0.5));
+      const shuffledItems = rng.shuffle([...items]);
+      const checked = shuffledItems.slice(0, numChecked).map((item) => item.id);
+      const unchecked = shuffledItems.slice(numChecked).map((item) => item.id);
+      const totalPoints = items.reduce((sum, item) => sum + item.points, 0);
+      const earnedPoints = checked.reduce((sum, id) => {
+        const item = items.find((i) => i.id === id);
+        return sum + (item?.points || 0);
+      }, 0);
+      return {
+        value: { checked, unchecked },
+        rawScore: earnedPoints,
+        normalizedScore: totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0,
+      };
+    }
+    case "rating_stars": {
+      const maxStars = (config.max_stars as number) || 5;
+      const allowHalf = config.allow_half as boolean;
+      let stars = isGoodScore
+        ? rng.float(maxStars * 0.7, maxStars)
+        : rng.float(1, maxStars * 0.5);
+      if (!allowHalf) stars = Math.round(stars);
+      else stars = Math.round(stars * 2) / 2;
+      return {
+        value: { stars },
+        rawScore: stars,
+        normalizedScore: (stars / maxStars) * 100,
+      };
+    }
+    case "percentage": {
+      const value = isGoodScore
+        ? rng.int(65, 100)
+        : rng.int(20, 60);
+      return {
+        value: { value },
+        rawScore: value,
+        normalizedScore: value,
+      };
+    }
+    case "dropdown": {
+      const options = (config.options as Array<{ value: string; score: number }>) || [];
+      const sortedOptions = [...options].sort((a, b) => b.score - a.score);
+      const selectedIdx = isGoodScore
+        ? rng.int(0, Math.floor(sortedOptions.length / 2))
+        : rng.int(Math.floor(sortedOptions.length / 2), sortedOptions.length - 1);
+      const selected = sortedOptions[selectedIdx];
+      return {
+        value: { selected: selected.value },
+        rawScore: selected.score,
+        normalizedScore: selected.score,
+      };
+    }
+    case "multi_select": {
+      const options = (config.options as Array<{ value: string; score: number }>) || [];
+      const numSelected = isGoodScore
+        ? rng.int(Math.ceil(options.length * 0.6), options.length)
+        : rng.int(0, Math.floor(options.length * 0.4));
+      const shuffledOptions = rng.shuffle([...options]);
+      const selected = shuffledOptions.slice(0, numSelected).map((opt) => opt.value);
+      const totalPossible = options.reduce((sum, opt) => sum + opt.score, 0);
+      const earnedScore = selected.reduce((sum, val) => {
+        const opt = options.find((o) => o.value === val);
+        return sum + (opt?.score || 0);
+      }, 0);
+      return {
+        value: { selected },
+        rawScore: earnedScore,
+        normalizedScore: totalPossible > 0 ? (earnedScore / totalPossible) * 100 : 0,
+      };
+    }
+    case "text": {
+      const responses = isGoodScore
+        ? [
+            "Excellent communication skills demonstrated throughout the call. The rep showed great empathy and product knowledge.",
+            "Very professional approach. Customer concerns were addressed thoroughly and next steps were clearly defined.",
+            "Strong performance overall. Good rapport building and effective discovery questions asked.",
+          ]
+        : [
+            "Needs improvement in objection handling. Customer concerns were not fully addressed.",
+            "Communication could be clearer. Some key points were missed during the presentation.",
+            "Additional coaching needed on discovery questions and active listening.",
+          ];
+      return {
+        value: { response: rng.choice(responses) },
+        rawScore: isGoodScore ? 80 : 40,
+        normalizedScore: isGoodScore ? 80 : 40,
+      };
+    }
+    default:
+      return { value: {}, rawScore: 0, normalizedScore: 0 };
+  }
+}
+
+// ============================================================================
 // Main Generator Function
 // ============================================================================
 
@@ -773,6 +1141,16 @@ export async function generateDemoData(
     scorecards: 0,
     scripts: 0,
     insightTemplates: 0,
+    // Coaching platform
+    templates: 0,
+    criteriaGroups: 0,
+    criteria: 0,
+    sessions: 0,
+    scores: 0,
+    templateVersions: 0,
+    // Extended data
+    callScoreResults: 0,
+    meetTranscripts: 0,
   };
 
   try {
@@ -869,7 +1247,219 @@ export async function generateDemoData(
       counts.insightTemplates = 1;
     }
 
-    // 5. Create Callers
+    // ========================================================================
+    // GOOGLE MEET TRANSCRIPTS (Mock)
+    // ========================================================================
+    // Create a demo google connection and some meet transcripts
+
+    // Create demo google connection (with placeholder tokens - for demo only)
+    const { data: googleConnection, error: gcError } = await supabase
+      .from("google_connections")
+      .insert({
+        user_id: config.userId,
+        google_email: "demo@kalyxi-demo.com",
+        google_user_id: `demo-${batchId.slice(0, 8)}`,
+        access_token: "demo-access-token-placeholder",
+        refresh_token_encrypted: "demo-encrypted-token",
+        refresh_token_iv: "demo-iv",
+        refresh_token_tag: "demo-tag",
+        token_expiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        scopes: ["https://www.googleapis.com/auth/meetings.space.readonly"],
+        last_sync_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (gcError) {
+      errors.push(`Google connection: ${gcError.message}`);
+    }
+
+    // Store connection for meet_transcripts if created
+    let demoConnectionId: string | null = googleConnection?.id || null;
+
+    // ========================================================================
+    // COACHING PLATFORM DATA
+    // ========================================================================
+
+    // Store created template IDs and their criteria for session creation
+    const createdTemplates: Array<{
+      id: string;
+      criteria: Array<{
+        id: string;
+        group_id: string | null;
+        type: CriteriaType;
+        config: Record<string, unknown>;
+        weight: number;
+        max_score: number;
+        is_auto_fail: boolean;
+        auto_fail_threshold: number | null;
+      }>;
+    }> = [];
+
+    // 5. Create Coaching Templates with Criteria
+    for (const templateConfig of TEMPLATE_CONFIGS) {
+      // Insert template
+      const { data: template, error: templateError } = await supabase
+        .from("templates")
+        .insert({
+          org_id: config.orgId,
+          name: templateConfig.name,
+          description: templateConfig.description,
+          scoring_method: templateConfig.scoring_method,
+          use_case: templateConfig.use_case,
+          pass_threshold: templateConfig.pass_threshold,
+          max_total_score: 100,
+          status: "active",
+          version: 1,
+          is_default: templateConfig.name.includes("Sales Call"),
+          created_by: config.userId,
+          activated_at: new Date().toISOString(),
+          settings: {
+            allow_na: true,
+            require_comments_below_threshold: templateConfig.scoring_method === "weighted",
+            comments_threshold: 50,
+            auto_calculate: true,
+            show_weights_to_agents: true,
+            allow_partial_submission: false,
+          },
+        })
+        .select()
+        .single();
+
+      if (templateError) {
+        errors.push(`Template ${templateConfig.name}: ${templateError.message}`);
+        continue;
+      }
+
+      counts.templates++;
+      const templateCriteria: typeof createdTemplates[0]["criteria"] = [];
+
+      // Create criteria groups and criteria
+      let groupSortOrder = 0;
+      for (const groupConfig of templateConfig.groups) {
+        const { data: group, error: groupError } = await supabase
+          .from("criteria_groups")
+          .insert({
+            template_id: template.id,
+            name: groupConfig.name,
+            description: groupConfig.description,
+            sort_order: groupSortOrder++,
+            weight: 0,
+            is_required: true,
+            is_collapsed_by_default: false,
+          })
+          .select()
+          .single();
+
+        if (groupError) {
+          errors.push(`Criteria group ${groupConfig.name}: ${groupError.message}`);
+          continue;
+        }
+
+        counts.criteriaGroups++;
+
+        // Create criteria in this group
+        let criteriaSortOrder = 0;
+        for (const criteriaConfig of groupConfig.criteria) {
+          const criteriaType = criteriaConfig.type;
+          const config_data = generateCriteriaConfig(criteriaType, rng);
+          const maxScore = criteriaConfig.max_score || 100;
+
+          const { data: criteria, error: criteriaError } = await supabase
+            .from("criteria")
+            .insert({
+              template_id: template.id,
+              group_id: group.id,
+              name: criteriaConfig.name,
+              description: `Evaluate ${criteriaConfig.name.toLowerCase()}`,
+              criteria_type: criteriaType,
+              config: config_data,
+              weight: criteriaConfig.weight,
+              max_score: maxScore,
+              sort_order: criteriaSortOrder++,
+              is_required: criteriaConfig.is_required,
+              is_auto_fail: criteriaConfig.is_auto_fail || false,
+              auto_fail_threshold: criteriaConfig.auto_fail_threshold || null,
+              scoring_guide: `Score this criteria based on ${criteriaConfig.name.toLowerCase()} performance.`,
+              keywords: [],
+            })
+            .select()
+            .single();
+
+          if (criteriaError) {
+            errors.push(`Criteria ${criteriaConfig.name}: ${criteriaError.message}`);
+            continue;
+          }
+
+          counts.criteria++;
+          templateCriteria.push({
+            id: criteria.id,
+            group_id: group.id,
+            type: criteriaType,
+            config: config_data,
+            weight: criteriaConfig.weight,
+            max_score: maxScore,
+            is_auto_fail: criteriaConfig.is_auto_fail || false,
+            auto_fail_threshold: criteriaConfig.auto_fail_threshold || null,
+          });
+        }
+      }
+
+      createdTemplates.push({
+        id: template.id,
+        criteria: templateCriteria,
+      });
+
+      // Create template versions (1-3 versions per template for realism)
+      const numVersions = rng.int(1, 3);
+      for (let v = 1; v <= numVersions; v++) {
+        const versionDate = new Date();
+        versionDate.setDate(versionDate.getDate() - (numVersions - v) * rng.int(7, 30));
+
+        const { error: versionError } = await supabase.from("template_versions").insert({
+          template_id: template.id,
+          version_number: v,
+          snapshot: {
+            template: {
+              name: templateConfig.name,
+              description: templateConfig.description,
+              scoring_method: templateConfig.scoring_method,
+              pass_threshold: templateConfig.pass_threshold,
+            },
+            groups: templateConfig.groups.map((g, idx) => ({
+              id: `group-${idx}`,
+              name: g.name,
+              description: g.description,
+            })),
+            criteria: templateCriteria.map((c, idx) => ({
+              id: c.id,
+              name: templateConfig.groups.flatMap((g) => g.criteria)[idx]?.name || `Criterion ${idx + 1}`,
+              type: c.type,
+              weight: c.weight,
+            })),
+          },
+          change_summary: v === 1
+            ? "Initial published version"
+            : rng.choice([
+                "Updated criteria weights",
+                "Added new criteria",
+                "Adjusted pass threshold",
+                "Refined scoring guide",
+                "Minor updates",
+              ]),
+          changed_by: config.userId,
+          created_at: versionDate.toISOString(),
+        });
+
+        if (versionError) {
+          errors.push(`Template version: ${versionError.message}`);
+        } else {
+          counts.templateVersions++;
+        }
+      }
+    }
+
+    // 6. Create Callers
     const callerIds: string[] = [];
 
     for (let i = 0; i < sizeConfig.callers; i++) {
@@ -1018,6 +1608,68 @@ export async function generateDemoData(
           } else if (analysisData) {
             counts.analyses++;
 
+            // Create call_score_results for detailed scoring (links call to scorecard)
+            if (scorecard) {
+              const criteriaScores: Record<string, unknown> = {};
+              const detailedCriteria = scorecardCriteria as Array<{
+                id: string;
+                name: string;
+                weight: number;
+                max_score: number;
+              }>;
+
+              let totalWeightedScore = 0;
+              detailedCriteria.forEach((criterion) => {
+                const criterionScore = Math.round((score / 100) * criterion.max_score * rng.float(0.7, 1.3));
+                const cappedScore = Math.min(criterionScore, criterion.max_score);
+                const weightedScore = (cappedScore / criterion.max_score) * criterion.weight;
+                totalWeightedScore += weightedScore;
+
+                criteriaScores[criterion.id] = {
+                  name: criterion.name,
+                  score: cappedScore,
+                  max_score: criterion.max_score,
+                  weight: criterion.weight,
+                  weighted_score: Math.round(weightedScore * 10) / 10,
+                  feedback: rng.choice([
+                    "Strong performance in this area.",
+                    "Room for improvement.",
+                    "Met expectations.",
+                    "Exceeded expectations.",
+                    "Needs coaching attention.",
+                  ]),
+                  highlights: rng.boolean(0.7) ? [rng.choice(STRENGTHS)] : [],
+                  improvements: rng.boolean(0.5) ? [rng.choice(IMPROVEMENTS)] : [],
+                };
+              });
+
+              const { error: scoreResultError } = await supabase.from("call_score_results").insert({
+                call_id: call.id,
+                scorecard_id: scorecard.id,
+                org_id: config.orgId,
+                total_score: Math.round(totalWeightedScore * 10) / 10,
+                max_possible_score: 100,
+                percentage_score: Math.round(totalWeightedScore),
+                criteria_scores: criteriaScores,
+                summary: analysis.executiveSummary,
+                strengths: analysis.strengths,
+                improvements: analysis.improvements,
+                scored_at: callTimestamp.toISOString(),
+                scored_by: rng.choice(["ai", "hybrid"]),
+                scorecard_version: 1,
+                scorecard_snapshot: {
+                  name: scorecard.name,
+                  criteria: detailedCriteria,
+                },
+              });
+
+              if (scoreResultError) {
+                errors.push(`Call score result: ${scoreResultError.message}`);
+              } else {
+                counts.callScoreResults++;
+              }
+            }
+
             // Create report for some analyzed calls (80%)
             if (rng.boolean(0.8)) {
               const reportJson = generateReport(
@@ -1064,6 +1716,259 @@ export async function generateDemoData(
             })
             .eq("id", call.id);
         }
+
+        // Create meet_transcript for some analyzed calls (40% chance if we have a connection)
+        if (demoConnectionId && status === "analyzed" && call && rng.boolean(0.4)) {
+          const meetingCode = `${rng.choice(["abc", "xyz", "demo", "meet"])}-${rng.choice(["def", "ghi", "jkl"])}-${rng.choice(["mno", "pqr", "stu"])}`;
+          const conferenceRecordName = `conferenceRecords/${batchId.slice(0, 12)}-${call.id.slice(0, 8)}`;
+          const transcriptName = `${conferenceRecordName}/transcripts/${uuidv4().slice(0, 8)}`;
+
+          const meetingStartTime = new Date(callTimestamp);
+          const meetingEndTime = new Date(meetingStartTime.getTime() + rng.int(15, 45) * 60 * 1000);
+
+          const { error: transcriptError } = await supabase.from("meet_transcripts").insert({
+            user_id: config.userId,
+            connection_id: demoConnectionId,
+            meeting_code: meetingCode,
+            conference_record_name: conferenceRecordName,
+            transcript_name: transcriptName,
+            transcript_state: "FILE_GENERATED",
+            text_content: transcript,
+            text_source: "entries",
+            entries_count: rng.int(20, 100),
+            meeting_start_time: meetingStartTime.toISOString(),
+            meeting_end_time: meetingEndTime.toISOString(),
+            meeting_space_name: `spaces/${meetingCode}`,
+            participants: JSON.stringify([
+              { displayName: callerName, email: "demo-caller@kalyxi.com" },
+              { displayName: customerName, email: `${customerName.toLowerCase().replace(" ", ".")}@${customerCompany.toLowerCase().replace(/\s+/g, "")}.com` },
+            ]),
+            metadata: {
+              demo: true,
+              linked_call_id: call.id,
+              organizer: callerName,
+            },
+          });
+
+          if (transcriptError) {
+            errors.push(`Meet transcript: ${transcriptError.message}`);
+          } else {
+            counts.meetTranscripts++;
+          }
+        }
+      }
+    }
+
+    // ========================================================================
+    // CREATE COACHING SESSIONS
+    // ========================================================================
+    // Create sessions linked to some of the calls we just created
+
+    // Fetch calls that are analyzed (good candidates for sessions)
+    const { data: analyzedCalls } = await supabase
+      .from("calls")
+      .select("id, caller_id")
+      .eq("org_id", config.orgId)
+      .not("demo_batch_id", "is", null)
+      .eq("status", "analyzed")
+      .limit(Math.ceil(counts.calls * 0.6)); // 60% of calls get sessions
+
+    // Also fetch users for the org to use as coach/agent
+    const { data: orgUsers } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("org_id", config.orgId)
+      .limit(20);
+
+    const coaches = orgUsers?.filter((u) => ["admin", "manager", "coach"].includes(u.role)) || [];
+    const agents = orgUsers?.filter((u) => ["caller", "coach"].includes(u.role)) || [];
+
+    // Create sessions
+    if (analyzedCalls && analyzedCalls.length > 0 && createdTemplates.length > 0) {
+      // Also create some sessions without calls
+      const numStandaloneSessions = Math.ceil(sizeConfig.callers * 2);
+      const allSessionTargets = [
+        ...analyzedCalls.map((call) => ({ call_id: call.id, caller_id: call.caller_id })),
+        ...Array.from({ length: numStandaloneSessions }, () => ({ call_id: null, caller_id: null })),
+      ];
+
+      for (const target of allSessionTargets) {
+        // Determine session status
+        const statusRand = rng.next();
+        let sessionStatus: string;
+        let cumWeight = 0;
+        for (const [status, weight] of Object.entries(SESSION_STATUS_WEIGHTS)) {
+          cumWeight += weight;
+          if (statusRand < cumWeight) {
+            sessionStatus = status;
+            break;
+          }
+        }
+        sessionStatus = sessionStatus! || "pending";
+
+        // Pick a random template
+        const templateData = rng.choice(createdTemplates);
+        const coach = coaches.length > 0 ? rng.choice(coaches) : null;
+        const agent = agents.length > 0 ? rng.choice(agents) : null;
+
+        // Determine dates based on status
+        const createdAt = rng.date(60);
+        const startedAt = ["in_progress", "completed", "reviewed", "disputed"].includes(sessionStatus)
+          ? new Date(createdAt.getTime() + rng.int(1, 24) * 60 * 60 * 1000)
+          : null;
+        const completedAt = ["completed", "reviewed", "disputed"].includes(sessionStatus)
+          ? new Date((startedAt || createdAt).getTime() + rng.int(10, 60) * 60 * 1000)
+          : null;
+        const reviewedAt = sessionStatus === "reviewed"
+          ? new Date((completedAt || createdAt).getTime() + rng.int(1, 48) * 60 * 60 * 1000)
+          : null;
+        const disputedAt = sessionStatus === "disputed"
+          ? new Date((completedAt || createdAt).getTime() + rng.int(1, 24) * 60 * 60 * 1000)
+          : null;
+        const cancelledAt = sessionStatus === "cancelled"
+          ? new Date(createdAt.getTime() + rng.int(1, 12) * 60 * 60 * 1000)
+          : null;
+
+        // Build template snapshot for completed sessions
+        const templateSnapshot = ["completed", "reviewed", "disputed"].includes(sessionStatus)
+          ? {
+              criteria: templateData.criteria.map((c) => ({
+                id: c.id,
+                group_id: c.group_id,
+                type: c.type,
+                config: c.config,
+                weight: c.weight,
+                max_score: c.max_score,
+                is_auto_fail: c.is_auto_fail,
+                auto_fail_threshold: c.auto_fail_threshold,
+              })),
+              groups: [],
+            }
+          : null;
+
+        // Insert session
+        const { data: session, error: sessionError } = await supabase
+          .from("sessions")
+          .insert({
+            org_id: config.orgId,
+            template_id: templateData.id,
+            call_id: target.call_id,
+            coach_id: coach?.id || config.userId,
+            agent_id: agent?.id || null,
+            status: sessionStatus,
+            coach_notes: ["completed", "reviewed"].includes(sessionStatus)
+              ? rng.choice([
+                  "Good overall performance. Focus on discovery questions next time.",
+                  "Strong closing skills. Work on objection handling.",
+                  "Excellent rapport building. Continue the good work!",
+                  "Needs improvement in value articulation. Schedule follow-up coaching.",
+                  "Great progress since last session. Keep practicing discovery.",
+                ])
+              : null,
+            agent_notes: sessionStatus === "disputed"
+              ? "I disagree with the scoring on discovery questions. The customer cut me off before I could ask more questions."
+              : null,
+            reviewed_by: sessionStatus === "reviewed" ? config.userId : null,
+            reviewed_at: reviewedAt?.toISOString() || null,
+            reviewer_notes: sessionStatus === "reviewed"
+              ? "Reviewed and approved. Agent shows steady improvement."
+              : null,
+            disputed_at: disputedAt?.toISOString() || null,
+            dispute_reason: sessionStatus === "disputed"
+              ? "Customer interrupted frequently, preventing proper discovery. Score should reflect this context."
+              : null,
+            template_version: 1,
+            template_snapshot: templateSnapshot,
+            created_at: createdAt.toISOString(),
+            started_at: startedAt?.toISOString() || null,
+            completed_at: completedAt?.toISOString() || null,
+            cancelled_at: cancelledAt?.toISOString() || null,
+          })
+          .select()
+          .single();
+
+        if (sessionError) {
+          errors.push(`Session: ${sessionError.message}`);
+          continue;
+        }
+
+        counts.sessions++;
+
+        // Create scores for completed/reviewed/disputed sessions
+        if (["completed", "reviewed", "disputed", "in_progress"].includes(sessionStatus)) {
+          // Determine overall performance level for this session
+          const targetPercentage = sessionStatus === "disputed"
+            ? 55 // Disputed sessions tend to be lower scores
+            : rng.int(40, 95); // Random target score for variety
+
+          // Score all criteria (or partial for in_progress)
+          const criteriaToScore = sessionStatus === "in_progress"
+            ? rng.shuffle([...templateData.criteria]).slice(0, Math.ceil(templateData.criteria.length * rng.float(0.3, 0.7)))
+            : templateData.criteria;
+
+          for (const criteriaItem of criteriaToScore) {
+            const { value, rawScore, normalizedScore } = generateScoreValue(
+              criteriaItem.type,
+              criteriaItem.config,
+              rng,
+              targetPercentage
+            );
+
+            // Calculate weighted score
+            const weightedScore = (normalizedScore * criteriaItem.weight) / 100;
+
+            // Check auto-fail
+            const isAutoFailTriggered = criteriaItem.is_auto_fail &&
+              criteriaItem.auto_fail_threshold !== null &&
+              normalizedScore < criteriaItem.auto_fail_threshold;
+
+            // Decide if this score should be N/A
+            const isNa = !criteriaItem.is_auto_fail && rng.boolean(0.05); // 5% chance of N/A
+
+            const { error: scoreError } = await supabase.from("scores").insert({
+              session_id: session.id,
+              criteria_id: criteriaItem.id,
+              criteria_group_id: criteriaItem.group_id,
+              value: value,
+              raw_score: isNa ? null : rawScore,
+              normalized_score: isNa ? null : normalizedScore,
+              weighted_score: isNa ? null : weightedScore,
+              is_na: isNa,
+              is_auto_fail_triggered: isAutoFailTriggered,
+              comment: rng.boolean(0.3)
+                ? rng.choice([
+                    "Good performance here.",
+                    "Room for improvement.",
+                    "Excellent work!",
+                    "Needs coaching attention.",
+                    "Met expectations.",
+                  ])
+                : null,
+              criteria_snapshot: {
+                type: criteriaItem.type,
+                config: criteriaItem.config,
+                weight: criteriaItem.weight,
+                max_score: criteriaItem.max_score,
+              },
+              scored_by: coach?.id || config.userId,
+              scored_at: (startedAt || createdAt).toISOString(),
+            });
+
+            if (scoreError) {
+              errors.push(`Score: ${scoreError.message}`);
+            } else {
+              counts.scores++;
+            }
+          }
+        }
+
+        // Insert session audit log entry
+        await supabase.from("session_audit_log").insert({
+          session_id: session.id,
+          user_id: config.userId,
+          action: "created",
+          details: { demo: true, status: sessionStatus },
+        });
       }
     }
 
@@ -1101,6 +2006,16 @@ export async function deleteDemoData(
     scorecards: 0,
     scripts: 0,
     insightTemplates: 0,
+    // Coaching platform
+    templates: 0,
+    criteriaGroups: 0,
+    criteria: 0,
+    sessions: 0,
+    scores: 0,
+    templateVersions: 0,
+    // Extended data
+    callScoreResults: 0,
+    meetTranscripts: 0,
   };
 
   try {
@@ -1108,6 +2023,120 @@ export async function deleteDemoData(
     const filterCondition = batchId
       ? { demo_batch_id: batchId }
       : { org_id: orgId };
+
+    // ========================================================================
+    // Delete extended data first (new tables)
+    // ========================================================================
+
+    // Delete meet_transcripts (delete by demo metadata in connection)
+    const { data: transcriptsDeleted } = await supabase
+      .from("meet_transcripts")
+      .delete()
+      .eq("user_id", (await supabase.auth.getUser()).data.user?.id || "")
+      .filter("metadata->demo", "eq", true)
+      .select("id");
+    deleted.meetTranscripts = transcriptsDeleted?.length || 0;
+
+    // Delete demo google_connections (only ones with demo email pattern)
+    await supabase
+      .from("google_connections")
+      .delete()
+      .eq("google_email", "demo@kalyxi-demo.com");
+
+    // Delete call_score_results (linked to calls)
+    const { data: demoCallIds } = await supabase
+      .from("calls")
+      .select("id")
+      .eq("org_id", orgId)
+      .not("demo_batch_id", "is", null);
+
+    if (demoCallIds && demoCallIds.length > 0) {
+      const { data: scoreResultsDeleted } = await supabase
+        .from("call_score_results")
+        .delete()
+        .in("call_id", demoCallIds.map((c) => c.id))
+        .select("id");
+      deleted.callScoreResults = scoreResultsDeleted?.length || 0;
+    }
+
+    // Delete template_versions (count first, deleted via CASCADE from templates)
+    const demoTemplateIds = (
+      await supabase
+        .from("templates")
+        .select("id")
+        .eq("org_id", orgId)
+        .like("name", "[Demo]%")
+    ).data?.map((t) => t.id) || [];
+
+    if (demoTemplateIds.length > 0) {
+      const { count: versionsCount } = await supabase
+        .from("template_versions")
+        .select("id", { count: "exact" })
+        .in("template_id", demoTemplateIds);
+      deleted.templateVersions = versionsCount || 0;
+    }
+
+    // ========================================================================
+    // Delete coaching platform data (respecting FKs)
+    // Scores are deleted via CASCADE from sessions
+    // Sessions
+    const { data: sessionsDeleted } = await supabase
+      .from("sessions")
+      .delete()
+      .eq("org_id", orgId)
+      .in(
+        "template_id",
+        (
+          await supabase
+            .from("templates")
+            .select("id")
+            .eq("org_id", orgId)
+            .like("name", "[Demo]%")
+        ).data?.map((t) => t.id) || []
+      )
+      .select("id");
+    deleted.sessions = sessionsDeleted?.length || 0;
+
+    // Criteria (deleted via CASCADE from templates, but count them first)
+    const { count: criteriaCount } = await supabase
+      .from("criteria")
+      .select("id", { count: "exact" })
+      .in(
+        "template_id",
+        (
+          await supabase
+            .from("templates")
+            .select("id")
+            .eq("org_id", orgId)
+            .like("name", "[Demo]%")
+        ).data?.map((t) => t.id) || []
+      );
+    deleted.criteria = criteriaCount || 0;
+
+    // Criteria Groups (deleted via CASCADE from templates)
+    const { count: groupsCount } = await supabase
+      .from("criteria_groups")
+      .select("id", { count: "exact" })
+      .in(
+        "template_id",
+        (
+          await supabase
+            .from("templates")
+            .select("id")
+            .eq("org_id", orgId)
+            .like("name", "[Demo]%")
+        ).data?.map((t) => t.id) || []
+      );
+    deleted.criteriaGroups = groupsCount || 0;
+
+    // Templates
+    const { data: templatesDeleted } = await supabase
+      .from("templates")
+      .delete()
+      .eq("org_id", orgId)
+      .like("name", "[Demo]%")
+      .select("id");
+    deleted.templates = templatesDeleted?.length || 0;
 
     // Delete in order to respect foreign keys
     // 1. Reports
@@ -1203,7 +2232,7 @@ export async function getDemoDataStatus(
 }> {
   try {
     // Count demo data in each table
-    const [callers, calls, analyses, reports, gradingTemplates, scorecards, scripts, insightTemplates] =
+    const [callers, calls, analyses, reports, gradingTemplates, scorecards, scripts, insightTemplates, templates, sessions] =
       await Promise.all([
         supabase
           .from("callers")
@@ -1243,6 +2272,27 @@ export async function getDemoDataStatus(
           .select("id", { count: "exact" })
           .eq("org_id", orgId)
           .not("demo_batch_id", "is", null),
+        // Coaching platform - templates with [Demo] prefix
+        supabase
+          .from("templates")
+          .select("id", { count: "exact" })
+          .eq("org_id", orgId)
+          .like("name", "[Demo]%"),
+        // Sessions linked to demo templates
+        supabase
+          .from("sessions")
+          .select("id", { count: "exact" })
+          .eq("org_id", orgId)
+          .in(
+            "template_id",
+            (
+              await supabase
+                .from("templates")
+                .select("id")
+                .eq("org_id", orgId)
+                .like("name", "[Demo]%")
+            ).data?.map((t) => t.id) || []
+          ),
       ]);
 
     const counts = {
@@ -1254,6 +2304,9 @@ export async function getDemoDataStatus(
       scorecards: scorecards.count || 0,
       scripts: scripts.count || 0,
       insightTemplates: insightTemplates.count || 0,
+      // Coaching platform
+      templates: templates.count || 0,
+      sessions: sessions.count || 0,
     };
 
     const hasDemoData = Object.values(counts).some((c) => c > 0);

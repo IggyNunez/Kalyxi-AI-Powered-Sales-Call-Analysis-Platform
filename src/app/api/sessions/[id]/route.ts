@@ -38,17 +38,14 @@ export async function GET(request: Request, { params }: RouteParams) {
     const includeScores = searchParams.get("include_scores") === "true";
     const includeAuditLog = searchParams.get("include_audit_log") === "true";
 
-    // Fetch session with relations
+    // Fetch session with relations (excluding user joins since FK points to auth.users)
     const { data: session, error } = await supabase
       .from("sessions")
       .select(
         `
         *,
-        templates:template_id (id, name, use_case, scoring_method, pass_threshold, settings),
-        coach:coach_id (id, name, email, avatar_url),
-        agent:agent_id (id, name, email, avatar_url),
-        calls:call_id (id, customer_name, customer_company, call_timestamp, raw_notes),
-        reviewed_by_user:reviewed_by (id, name, email)
+        templates (id, name, use_case, scoring_method, pass_threshold, settings),
+        calls (id, customer_name, customer_company, call_timestamp, raw_notes)
       `
       )
       .eq("id", id)
@@ -66,7 +63,29 @@ export async function GET(request: Request, { params }: RouteParams) {
       }
     }
 
-    let result: Record<string, unknown> = { ...session };
+    // Fetch user data separately (coach, agent, reviewed_by)
+    const userIds = [session.coach_id, session.agent_id, session.reviewed_by].filter(Boolean) as string[];
+    let userMap = new Map<string, { id: string; name: string; email: string; avatar_url?: string }>();
+
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from("users")
+        .select("id, name, email, avatar_url")
+        .in("id", userIds);
+
+      if (users) {
+        for (const u of users) {
+          userMap.set(u.id, u);
+        }
+      }
+    }
+
+    let result: Record<string, unknown> = {
+      ...session,
+      coach: session.coach_id ? userMap.get(session.coach_id) || null : null,
+      agent: session.agent_id ? userMap.get(session.agent_id) || null : null,
+      reviewed_by_user: session.reviewed_by ? userMap.get(session.reviewed_by) || null : null,
+    };
 
     // Optionally include scores
     if (includeScores) {
@@ -89,17 +108,37 @@ export async function GET(request: Request, { params }: RouteParams) {
     if (includeAuditLog) {
       const { data: auditLog } = await supabase
         .from("session_audit_log")
-        .select(
-          `
-          *,
-          user:user_id (id, name, email)
-        `
-        )
+        .select("*")
         .eq("session_id", id)
         .order("created_at", { ascending: false })
         .limit(50);
 
-      result.audit_log = auditLog || [];
+      // Fetch user data for audit log entries
+      if (auditLog && auditLog.length > 0) {
+        const auditUserIds = [...new Set(auditLog.filter(l => l.user_id).map(l => l.user_id as string))];
+        if (auditUserIds.length > 0) {
+          const { data: auditUsers } = await supabase
+            .from("users")
+            .select("id, name, email")
+            .in("id", auditUserIds);
+
+          const auditUserMap = new Map<string, { id: string; name: string; email: string }>();
+          if (auditUsers) {
+            for (const u of auditUsers) {
+              auditUserMap.set(u.id, u);
+            }
+          }
+
+          result.audit_log = auditLog.map(log => ({
+            ...log,
+            user: log.user_id ? auditUserMap.get(log.user_id) || null : null,
+          }));
+        } else {
+          result.audit_log = auditLog.map(log => ({ ...log, user: null }));
+        }
+      } else {
+        result.audit_log = [];
+      }
     }
 
     // Include criteria from template snapshot for scoring interface
@@ -204,10 +243,8 @@ export async function PUT(request: Request, { params }: RouteParams) {
       .select(
         `
         *,
-        templates:template_id (id, name, use_case, scoring_method),
-        coach:coach_id (id, name, email),
-        agent:agent_id (id, name, email),
-        calls:call_id (id, customer_name, call_timestamp)
+        templates (id, name, use_case, scoring_method),
+        calls (id, customer_name, call_timestamp)
       `
       )
       .single();
@@ -215,6 +252,26 @@ export async function PUT(request: Request, { params }: RouteParams) {
     if (error) {
       console.error("Error updating session:", error);
       return errorResponse("Failed to update session", 500);
+    }
+
+    // Fetch user data for coach and agent
+    const sessionUserIds = [session.coach_id, session.agent_id].filter(Boolean) as string[];
+    let sessionWithUsers = { ...session, coach: null as { id: string; name: string; email: string } | null, agent: null as { id: string; name: string; email: string } | null };
+
+    if (sessionUserIds.length > 0) {
+      const { data: sessionUsers } = await supabase
+        .from("users")
+        .select("id, name, email")
+        .in("id", sessionUserIds);
+
+      if (sessionUsers) {
+        const sessionUserMap = new Map<string, { id: string; name: string; email: string }>();
+        for (const u of sessionUsers) {
+          sessionUserMap.set(u.id, u);
+        }
+        sessionWithUsers.coach = session.coach_id ? sessionUserMap.get(session.coach_id) || null : null;
+        sessionWithUsers.agent = session.agent_id ? sessionUserMap.get(session.agent_id) || null : null;
+      }
     }
 
     // Audit log
@@ -229,7 +286,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
       request
     );
 
-    return successResponse(session);
+    return successResponse(sessionWithUsers);
   } catch (error) {
     console.error("Error updating session:", error);
     return errorResponse("Failed to update session", 500);

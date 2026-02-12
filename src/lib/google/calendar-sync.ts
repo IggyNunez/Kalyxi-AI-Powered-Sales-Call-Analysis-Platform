@@ -317,7 +317,7 @@ async function buildUserMapping(orgId: string): Promise<Map<string, string>> {
   const mapping = new Map<string, string>();
 
   const { data: profiles } = await supabase
-    .from("user_profiles")
+    .from("users")
     .select("id, email")
     .eq("org_id", orgId);
 
