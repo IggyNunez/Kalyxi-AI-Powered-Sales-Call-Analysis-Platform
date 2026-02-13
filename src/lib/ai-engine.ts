@@ -1,16 +1,34 @@
+/**
+ * AI Engine
+ *
+ * Handles AI-powered analysis of sales call transcripts using the
+ * modern template/criteria system (8 criteria types).
+ *
+ * Main export: analyzeWithTemplate() - used by auto-pipeline and manual triggers
+ */
+
 import OpenAI from "openai";
 import { createAdminClient } from "@/lib/supabase/server";
-import {
-  GradingCriterion,
-  AnalysisResults,
-  GradingResult,
+import type {
+  Template,
+  Criteria,
+  CriteriaGroup,
+  CriteriaType,
   OrgSettings,
-  ScorecardCriterion,
-  Scorecard,
-  CriterionScoreResult,
+  ScoreValue,
+  ScaleCriteriaConfig,
+  PassFailCriteriaConfig,
+  ChecklistCriteriaConfig,
+  DropdownCriteriaConfig,
+  MultiSelectCriteriaConfig,
+  StarsCriteriaConfig,
+  PercentageCriteriaConfig,
 } from "@/types/database";
 
-// Lazy initialization to avoid build-time errors when OPENAI_API_KEY is not set
+// ============================================================================
+// OPENAI CLIENT
+// ============================================================================
+
 let openaiClient: OpenAI | null = null;
 
 function getOpenAIClient(): OpenAI {
@@ -22,191 +40,345 @@ function getOpenAIClient(): OpenAI {
   return openaiClient;
 }
 
-// Build dynamic prompt from grading criteria (legacy support)
-function buildAnalysisPrompt(criteria: GradingCriterion[]): string {
-  const criteriaDescriptions = criteria
-    .sort((a, b) => a.order - b.order)
-    .map((c) => {
-      let typeDesc = "";
-      switch (c.type) {
-        case "score":
-          typeDesc = `Score from ${c.minValue || 1} to ${c.maxValue || 10}`;
-          break;
-        case "text":
-          typeDesc = "Detailed text analysis";
-          break;
-        case "checklist":
-          typeDesc = `Checklist of items: ${c.options?.join(", ")}`;
-          break;
-        case "boolean":
-          typeDesc = "Yes/No assessment";
-          break;
-        case "percentage":
-          typeDesc = "Percentage (0-100)";
-          break;
-      }
-      return `- ${c.name} (${c.id}): ${c.description}. Type: ${typeDesc}`;
-    })
-    .join("\n");
+// ============================================================================
+// TYPES
+// ============================================================================
 
-  return buildBasePrompt(criteriaDescriptions);
+export interface AIScoreResult {
+  criteriaId: string;
+  groupId?: string | null;
+  value: ScoreValue;
+  rawScore: number;
+  normalizedScore: number;
+  weightedScore: number;
+  isAutoFailTriggered: boolean;
+  comment: string;
 }
 
-// Build prompt from scorecard criteria (new enhanced system)
-function buildScorecardPrompt(criteria: ScorecardCriterion[]): string {
-  const criteriaDescriptions = criteria
-    .sort((a, b) => a.order - b.order)
-    .map((c) => {
-      const keywordsHint = c.keywords?.length
-        ? ` Look for keywords: ${c.keywords.join(", ")}.`
-        : "";
-      return `- ${c.name} (${c.id}): ${c.description}
-    Score: 0 to ${c.max_score}
-    Weight: ${c.weight}%
-    Scoring Guide: ${c.scoring_guide}${keywordsHint}`;
-    })
-    .join("\n\n");
-
-  return `You are an expert sales call analyst. Analyze the following sales call notes/transcription and provide a comprehensive evaluation based on the scorecard criteria below.
-
-## Scorecard Criteria to Evaluate:
-${criteriaDescriptions}
-
-## Response Format:
-Return a JSON object with the following structure:
-{
-  "overallScore": number (0-100, weighted average of all criteria),
-  "criteriaScores": {
-    "criterion_id": {
-      "name": "string",
-      "score": number (0 to max_score for this criterion),
-      "max_score": number,
-      "weight": number,
-      "weighted_score": number (score/max_score * weight),
-      "feedback": "string (specific feedback)",
-      "highlights": ["string array of positive observations"],
-      "improvements": ["string array of suggestions"]
-    }
-  },
-  "gradingResults": [
-    {
-      "criterionId": "string",
-      "criterionName": "string",
-      "type": "score",
-      "value": number,
-      "score": number (normalized 0-100),
-      "feedback": "string",
-      "confidence": number (0-1)
-    }
-  ],
-  "compositeScore": number (weighted average),
-  "strengths": ["string array of key strengths"],
-  "improvements": ["string array of improvement areas"],
-  "executiveSummary": "2-3 sentence summary",
-  "actionItems": ["string array of follow-up actions"],
-  "objections": [
-    {
-      "objection": "the objection",
-      "response": "how handled",
-      "effectiveness": number (1-10)
-    }
-  ],
-  "gatekeeperDetected": boolean,
-  "gatekeeperHandling": "string if detected",
-  "competitorMentions": ["string array"],
-  "sentiment": {
-    "overall": "positive|neutral|negative",
-    "score": number (-1 to 1),
-    "progression": [{"timestamp": number, "sentiment": number}]
-  },
-  "callMetrics": {
-    "talkRatio": number (0-1),
-    "questionCount": number,
-    "interruptionCount": number,
-    "silenceDuration": number
-  },
-  "recommendations": ["string array of coaching tips"]
-}
-
-Be thorough and specific. Each criterion score should match the scoring guide provided.`;
-}
-
-// Base prompt builder
-function buildBasePrompt(criteriaDescriptions: string): string {
-  return `You are an expert sales call analyst. Analyze the following sales call notes/transcription and provide a comprehensive evaluation.
-
-## Grading Criteria to Evaluate:
-${criteriaDescriptions}
-
-## Response Format:
-Return a JSON object with the following structure:
-{
-  "overallScore": number (0-100, overall call quality),
-  "gradingResults": [
-    {
-      "criterionId": "string (the criterion id)",
-      "criterionName": "string",
-      "type": "score|text|checklist|boolean|percentage",
-      "value": "the actual value based on type",
-      "score": number (normalized 0-100 for comparison),
-      "feedback": "string (specific feedback for this criterion)",
-      "confidence": number (0-1, how confident you are in this assessment)
-    }
-  ],
-  "compositeScore": number (weighted average based on criterion weights),
-  "strengths": ["string array of key strengths demonstrated"],
-  "improvements": ["string array of specific improvement areas"],
-  "executiveSummary": "2-3 sentence summary of the call",
-  "actionItems": ["string array of follow-up actions needed"],
-  "objections": [
-    {
-      "objection": "the customer objection",
-      "response": "how it was handled",
-      "effectiveness": number (1-10)
-    }
-  ],
-  "gatekeeperDetected": boolean,
-  "gatekeeperHandling": "string (if gatekeeper detected, how it was handled)",
-  "competitorMentions": ["string array of competitors mentioned"],
-  "sentiment": {
-    "overall": "positive|neutral|negative",
-    "score": number (-1 to 1),
-    "progression": [{"timestamp": number, "sentiment": number}]
-  },
-  "callMetrics": {
-    "talkRatio": number (0-1, estimated caller talk time),
-    "questionCount": number,
-    "interruptionCount": number,
-    "silenceDuration": number (estimated)
-  },
-  "recommendations": ["string array of specific coaching recommendations"]
-}
-
-Be thorough, specific, and constructive in your feedback. Focus on actionable insights.`;
-}
-
-// Analyze a single call
-export async function analyzeCall(
-  callId: string,
-  rawNotes: string,
-  orgId: string
-): Promise<{
+export interface AnalyzeWithTemplateResult {
   success: boolean;
-  analysis?: AnalysisResults;
-  scorecard?: Scorecard;
+  scores?: AIScoreResult[];
+  analysis?: {
+    summary: string;
+    strengths: string[];
+    improvements: string[];
+    actionItems: string[];
+    objections: Array<{
+      objection: string;
+      response: string;
+      effectiveness: number;
+    }>;
+    sentiment: {
+      overall: "positive" | "neutral" | "negative";
+      score: number;
+    };
+    talkRatio: number;
+    competitorMentions: string[];
+  };
+  model?: string;
   processingTimeMs?: number;
   tokenUsage?: { prompt: number; completion: number; total: number };
   error?: string;
-}> {
+}
+
+// Shape of each criterion score returned by the AI
+interface AICriterionResponse {
+  criteriaId: string;
+  value: unknown;
+  feedback: string;
+  autoFailTriggered?: boolean;
+}
+
+interface AIResponse {
+  criteriaScores: AICriterionResponse[];
+  summary: string;
+  strengths: string[];
+  improvements: string[];
+  actionItems: string[];
+  objections: Array<{
+    objection: string;
+    response: string;
+    effectiveness: number;
+  }>;
+  sentiment: {
+    overall: "positive" | "neutral" | "negative";
+    score: number;
+  };
+  talkRatio: number;
+  competitorMentions: string[];
+}
+
+// ============================================================================
+// PROMPT BUILDER
+// ============================================================================
+
+function buildCriterionPromptSection(criterion: Criteria): string {
+  const config = criterion.config;
+  let typeInstructions = "";
+  let valueFormat = "";
+
+  switch (criterion.criteria_type) {
+    case "scale": {
+      const c = config as ScaleCriteriaConfig;
+      typeInstructions = `Score on a scale from ${c.min} to ${c.max} (step: ${c.step}).`;
+      if (c.labels) {
+        const labelStr = Object.entries(c.labels)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(", ");
+        typeInstructions += ` Labels: ${labelStr}`;
+      }
+      valueFormat = `{ "value": <number ${c.min}-${c.max}> }`;
+      break;
+    }
+    case "pass_fail": {
+      const c = config as PassFailCriteriaConfig;
+      typeInstructions = `Pass/Fail assessment. "${c.pass_label}" (score: ${c.pass_value}) or "${c.fail_label}" (score: ${c.fail_value}).`;
+      valueFormat = `{ "passed": <boolean> }`;
+      break;
+    }
+    case "checklist": {
+      const c = config as ChecklistCriteriaConfig;
+      const items = c.items.map((i) => `"${i.id}": ${i.label} (${i.points} pts)`).join(", ");
+      typeInstructions = `Checklist - mark which items were demonstrated. Items: ${items}. Scoring: ${c.scoring}.`;
+      valueFormat = `{ "checked": [<item_id strings>], "unchecked": [<item_id strings>] }`;
+      break;
+    }
+    case "text": {
+      typeInstructions = "Provide a detailed text assessment.";
+      valueFormat = `{ "response": "<text>" }`;
+      break;
+    }
+    case "dropdown": {
+      const c = config as DropdownCriteriaConfig;
+      const opts = c.options.map((o) => `"${o.value}": ${o.label} (score: ${o.score})`).join(", ");
+      typeInstructions = `Select the best-matching option. Options: ${opts}.`;
+      valueFormat = `{ "selected": "<option_value>" }`;
+      break;
+    }
+    case "multi_select": {
+      const c = config as MultiSelectCriteriaConfig;
+      const opts = c.options.map((o) => `"${o.value}": ${o.label} (score: ${o.score})`).join(", ");
+      typeInstructions = `Select all applicable options. Options: ${opts}. Scoring: ${c.scoring}.`;
+      valueFormat = `{ "selected": [<option_value strings>] }`;
+      break;
+    }
+    case "rating_stars": {
+      const c = config as StarsCriteriaConfig;
+      typeInstructions = `Star rating from 0 to ${c.max_stars}${c.allow_half ? " (half stars allowed)" : ""}.`;
+      valueFormat = `{ "stars": <number 0-${c.max_stars}> }`;
+      break;
+    }
+    case "percentage": {
+      typeInstructions = "Percentage score from 0 to 100.";
+      valueFormat = `{ "value": <number 0-100> }`;
+      break;
+    }
+  }
+
+  const keywordsHint = criterion.keywords?.length
+    ? `\n    Look for keywords: ${criterion.keywords.join(", ")}`
+    : "";
+  const scoringGuide = criterion.scoring_guide
+    ? `\n    Scoring guide: ${criterion.scoring_guide}`
+    : "";
+  const autoFail = criterion.is_auto_fail
+    ? `\n    ⚠️ AUTO-FAIL: If score is below ${criterion.auto_fail_threshold ?? 0}, the entire session fails.`
+    : "";
+
+  return `  - ID: "${criterion.id}"
+    Name: ${criterion.name}
+    Description: ${criterion.description || "N/A"}
+    Type: ${criterion.criteria_type}
+    ${typeInstructions}
+    Value format: ${valueFormat}
+    Weight: ${criterion.weight} | Max score: ${criterion.max_score}${scoringGuide}${keywordsHint}${autoFail}`;
+}
+
+function buildTemplateAnalysisPrompt(
+  template: Template,
+  criteria: Criteria[],
+  groups: CriteriaGroup[]
+): string {
+  // Organize criteria by group
+  const ungrouped = criteria.filter((c) => !c.group_id);
+  const grouped = groups
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((g) => ({
+      group: g,
+      criteria: criteria
+        .filter((c) => c.group_id === g.id)
+        .sort((a, b) => a.sort_order - b.sort_order),
+    }))
+    .filter((g) => g.criteria.length > 0);
+
+  let criteriaSection = "";
+
+  if (ungrouped.length > 0) {
+    criteriaSection += "## Criteria (Ungrouped)\n";
+    for (const c of ungrouped.sort((a, b) => a.sort_order - b.sort_order)) {
+      criteriaSection += buildCriterionPromptSection(c) + "\n\n";
+    }
+  }
+
+  for (const { group, criteria: groupCriteria } of grouped) {
+    criteriaSection += `## Group: ${group.name}${group.description ? ` - ${group.description}` : ""} (weight: ${group.weight})\n`;
+    for (const c of groupCriteria) {
+      criteriaSection += buildCriterionPromptSection(c) + "\n\n";
+    }
+  }
+
+  return `You are an expert sales call analyst and coach. Analyze the following sales call transcript and evaluate it against the scoring template "${template.name}".
+
+Scoring method: ${template.scoring_method}
+Pass threshold: ${template.pass_threshold}%
+
+${criteriaSection}
+
+## Instructions
+1. Read the transcript carefully
+2. For EACH criterion listed above, provide a score using the exact value format specified
+3. Provide specific, evidence-based feedback for each criterion
+4. Also provide an overall analysis with strengths, improvements, action items, etc.
+
+## Response Format
+Return a JSON object with this exact structure:
+{
+  "criteriaScores": [
+    {
+      "criteriaId": "<criterion ID from above>",
+      "value": <value object matching the criterion's value format>,
+      "feedback": "<specific evidence-based feedback>",
+      "autoFailTriggered": false
+    }
+  ],
+  "summary": "<2-3 sentence executive summary>",
+  "strengths": ["<specific strength>"],
+  "improvements": ["<specific improvement area>"],
+  "actionItems": ["<specific follow-up action>"],
+  "objections": [
+    {
+      "objection": "<customer objection>",
+      "response": "<how it was handled>",
+      "effectiveness": <1-10>
+    }
+  ],
+  "sentiment": {
+    "overall": "positive|neutral|negative",
+    "score": <-1 to 1>
+  },
+  "talkRatio": <0-1, estimated salesperson talk time ratio>,
+  "competitorMentions": ["<competitor name>"]
+}
+
+IMPORTANT:
+- Each criteriaScores entry must use the EXACT criteriaId from the criteria list above
+- Each value must match the exact format specified for that criterion type
+- For checklist items, use the exact item IDs provided
+- For dropdown/multi_select, use the exact option values provided
+- Set autoFailTriggered to true ONLY if the criterion has auto-fail enabled AND the score is below the threshold
+- Be thorough, specific, and constructive in feedback`;
+}
+
+// ============================================================================
+// SCORE CALCULATION
+// ============================================================================
+
+function calculateRawScore(
+  criteriaType: CriteriaType,
+  value: ScoreValue,
+  config: Criteria["config"],
+  maxScore: number
+): number {
+  switch (criteriaType) {
+    case "scale": {
+      const c = config as ScaleCriteriaConfig;
+      const v = (value as { value: number }).value;
+      if (typeof v !== "number") return 0;
+      const range = c.max - c.min;
+      if (range <= 0) return 0;
+      return Math.max(0, Math.min(maxScore, ((v - c.min) / range) * maxScore));
+    }
+    case "pass_fail": {
+      const c = config as PassFailCriteriaConfig;
+      const passed = (value as { passed: boolean }).passed;
+      return passed ? c.pass_value : c.fail_value;
+    }
+    case "checklist": {
+      const c = config as ChecklistCriteriaConfig;
+      const checked = (value as { checked: string[] }).checked || [];
+      const items = c.items || [];
+      if (items.length === 0) return 0;
+      if (c.scoring === "sum") {
+        return items
+          .filter((i) => checked.includes(i.id))
+          .reduce((sum, i) => sum + i.points, 0);
+      } else if (c.scoring === "average") {
+        const checkedItems = items.filter((i) => checked.includes(i.id));
+        if (checkedItems.length === 0) return 0;
+        const totalPoints = checkedItems.reduce((sum, i) => sum + i.points, 0);
+        return totalPoints / items.length;
+      } else {
+        // all_required
+        return checked.length === items.length ? maxScore : 0;
+      }
+    }
+    case "text": {
+      // Text criteria have no numeric score
+      return 0;
+    }
+    case "dropdown": {
+      const c = config as DropdownCriteriaConfig;
+      const selected = (value as { selected: string }).selected;
+      const option = c.options.find((o) => o.value === selected);
+      return option?.score ?? 0;
+    }
+    case "multi_select": {
+      const c = config as MultiSelectCriteriaConfig;
+      const selected = (value as { selected: string[] }).selected || [];
+      const selectedOptions = c.options.filter((o) => selected.includes(o.value));
+      if (selectedOptions.length === 0) return 0;
+      const total = selectedOptions.reduce((sum, o) => sum + o.score, 0);
+      return c.scoring === "average" ? total / selectedOptions.length : total;
+    }
+    case "rating_stars": {
+      const c = config as StarsCriteriaConfig;
+      const stars = (value as { stars: number }).stars;
+      if (c.max_stars <= 0) return 0;
+      return (stars / c.max_stars) * maxScore;
+    }
+    case "percentage": {
+      const v = (value as { value: number }).value;
+      return (v / 100) * maxScore;
+    }
+    default:
+      return 0;
+  }
+}
+
+// ============================================================================
+// MAIN ANALYSIS FUNCTION
+// ============================================================================
+
+/**
+ * Analyze a transcript against a template's criteria using AI.
+ * Returns structured scores for each criterion plus analysis metadata.
+ */
+export async function analyzeWithTemplate(
+  transcript: string,
+  template: Template,
+  criteria: Criteria[],
+  groups: CriteriaGroup[],
+  kbContext?: string
+): Promise<AnalyzeWithTemplateResult> {
   const startTime = Date.now();
-  const supabase = createAdminClient();
 
   try {
-    // Get organization settings
+    // Get org settings for AI model configuration
+    const supabase = await createAdminClient();
     const { data: org } = await supabase
       .from("organizations")
       .select("settings_json")
-      .eq("id", orgId)
+      .eq("id", template.org_id)
       .single();
 
     const settings = org?.settings_json as OrgSettings | null;
@@ -214,50 +386,25 @@ export async function analyzeCall(
     const temperature = settings?.ai?.temperature || 0.3;
     const customPrefix = settings?.ai?.customPromptPrefix || "";
 
-    // Try to get active scorecard first (new system)
-    const { data: scorecard } = await supabase
-      .from("scorecards")
-      .select("*")
-      .eq("org_id", orgId)
-      .eq("status", "active")
-      .eq("is_default", true)
-      .single();
+    // Build the prompt
+    const systemPrompt = buildTemplateAnalysisPrompt(template, criteria, groups);
 
-    let systemPrompt: string;
-    let scorecardCriteria: ScorecardCriterion[] | null = null;
-    let legacyCriteria: GradingCriterion[] | null = null;
-
-    if (scorecard) {
-      // Use new scorecard system
-      scorecardCriteria = scorecard.criteria as ScorecardCriterion[];
-      systemPrompt = buildScorecardPrompt(scorecardCriteria);
-    } else {
-      // Fall back to legacy grading templates
-      const { data: template } = await supabase
-        .from("grading_templates")
-        .select("criteria_json")
-        .eq("org_id", orgId)
-        .eq("is_default", true)
-        .eq("is_active", true)
-        .single();
-
-      if (!template) {
-        return { success: false, error: "No active scorecard or grading template found" };
-      }
-
-      legacyCriteria = template.criteria_json as GradingCriterion[];
-      systemPrompt = buildAnalysisPrompt(legacyCriteria);
+    // Build user message
+    let userContent = "";
+    if (customPrefix) {
+      userContent += customPrefix + "\n\n";
     }
+    if (kbContext) {
+      userContent += `## Company Knowledge Base Context\n${kbContext}\n\n`;
+    }
+    userContent += `## Call Transcript\n${transcript}`;
 
     // Call OpenAI
     const response = await getOpenAIClient().chat.completions.create({
       model,
       messages: [
         { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: `${customPrefix ? customPrefix + "\n\n" : ""}## Call Notes/Transcription:\n${rawNotes}`,
-        },
+        { role: "user", content: userContent },
       ],
       response_format: { type: "json_object" },
       temperature,
@@ -269,48 +416,42 @@ export async function analyzeCall(
       return { success: false, error: "No response from AI" };
     }
 
-    const analysisResults = JSON.parse(content) as AnalysisResults;
+    const aiResponse = JSON.parse(content) as AIResponse;
 
-    // Calculate composite score from weighted criteria
-    let weightedSum = 0;
-    let totalWeight = 0;
+    // Map AI responses to scored results
+    const scores: AIScoreResult[] = [];
 
-    if (scorecardCriteria) {
-      // New scorecard system - use criteriaScores if available
-      const resultsWithCriteria = analysisResults as unknown as { criteriaScores?: Record<string, CriterionScoreResult> };
-      const criteriaScores = resultsWithCriteria.criteriaScores;
-      if (criteriaScores) {
-        for (const [id, data] of Object.entries(criteriaScores)) {
-          const criterion = scorecardCriteria.find((c) => c.id === id);
-          if (criterion && data.score !== undefined) {
-            const normalizedScore = (data.score / data.max_score) * 100;
-            weightedSum += normalizedScore * criterion.weight;
-            totalWeight += criterion.weight;
-          }
-        }
-      } else {
-        // Fallback to gradingResults
-        for (const result of analysisResults.gradingResults || []) {
-          const criterion = scorecardCriteria.find((c) => c.id === result.criterionId);
-          if (criterion && result.score !== undefined) {
-            weightedSum += result.score * criterion.weight;
-            totalWeight += criterion.weight;
-          }
-        }
-      }
-    } else if (legacyCriteria) {
-      // Legacy grading template system
-      for (const result of analysisResults.gradingResults || []) {
-        const criterion = legacyCriteria.find((c) => c.id === result.criterionId);
-        if (criterion && result.score !== undefined) {
-          weightedSum += result.score * criterion.weight;
-          totalWeight += criterion.weight;
-        }
-      }
-    }
+    for (const aiScore of aiResponse.criteriaScores || []) {
+      const criterion = criteria.find((c) => c.id === aiScore.criteriaId);
+      if (!criterion) continue;
 
-    if (totalWeight > 0) {
-      analysisResults.compositeScore = Math.round(weightedSum / totalWeight);
+      const value = aiScore.value as ScoreValue;
+      const rawScore = calculateRawScore(
+        criterion.criteria_type,
+        value,
+        criterion.config,
+        criterion.max_score
+      );
+      const normalizedScore =
+        criterion.max_score > 0 ? (rawScore / criterion.max_score) * 100 : 0;
+      const weightedScore = normalizedScore * (criterion.weight / 100);
+
+      // Check auto-fail
+      const isAutoFailTriggered =
+        criterion.is_auto_fail &&
+        criterion.auto_fail_threshold != null &&
+        normalizedScore < criterion.auto_fail_threshold;
+
+      scores.push({
+        criteriaId: criterion.id,
+        groupId: criterion.group_id || null,
+        value,
+        rawScore,
+        normalizedScore,
+        weightedScore,
+        isAutoFailTriggered: isAutoFailTriggered || (aiScore.autoFailTriggered ?? false),
+        comment: aiScore.feedback || "",
+      });
     }
 
     const processingTimeMs = Date.now() - startTime;
@@ -322,13 +463,23 @@ export async function analyzeCall(
 
     return {
       success: true,
-      analysis: analysisResults,
-      scorecard: scorecard || undefined,
+      scores,
+      analysis: {
+        summary: aiResponse.summary || "",
+        strengths: aiResponse.strengths || [],
+        improvements: aiResponse.improvements || [],
+        actionItems: aiResponse.actionItems || [],
+        objections: aiResponse.objections || [],
+        sentiment: aiResponse.sentiment || { overall: "neutral", score: 0 },
+        talkRatio: aiResponse.talkRatio ?? 0.5,
+        competitorMentions: aiResponse.competitorMentions || [],
+      },
+      model,
       processingTimeMs,
       tokenUsage,
     };
   } catch (error) {
-    console.error("AI analysis error:", error);
+    console.error("[AIEngine] Analysis error:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Analysis failed",
@@ -336,261 +487,158 @@ export async function analyzeCall(
   }
 }
 
-// Process a call from the queue
-export async function processQueuedCall(queueItemId: string): Promise<boolean> {
-  const supabase = createAdminClient();
+// ============================================================================
+// LEGACY COMPAT: analyzeCall (used by /api/calls/[id]/analyze)
+// ============================================================================
 
-  // Get queue item
-  const { data: queueItem, error: queueError } = await supabase
-    .from("processing_queue")
-    .select("*, call:calls(*)")
-    .eq("id", queueItemId)
+/**
+ * Analyze a call by ID using the org's default template.
+ * This wraps analyzeWithTemplate for backward compatibility with the
+ * manual analyze endpoint.
+ */
+export async function analyzeCall(
+  callId: string,
+  rawNotes: string,
+  orgId: string
+): Promise<{
+  success: boolean;
+  analysis?: {
+    overallScore: number;
+    compositeScore: number;
+    summary: string;
+    strengths: string[];
+    improvements: string[];
+    recommendations: string[];
+    gradingResults: Array<{
+      criterionId: string;
+      criterionName: string;
+      type: string;
+      score: number;
+      feedback: string;
+    }>;
+  };
+  processingTimeMs?: number;
+  tokenUsage?: { prompt: number; completion: number; total: number };
+  error?: string;
+}> {
+  const supabase = await createAdminClient();
+
+  // Find org's default template
+  const { data: template } = await supabase
+    .from("templates")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("status", "active")
+    .eq("is_default", true)
     .single();
 
-  if (queueError || !queueItem) {
-    console.error("Queue item not found:", queueItemId);
-    return false;
-  }
-
-  // Update status to processing
-  await supabase
-    .from("processing_queue")
-    .update({ status: "processing", started_at: new Date().toISOString() })
-    .eq("id", queueItemId);
-
-  // Update call status
-  await supabase
-    .from("calls")
-    .update({ status: "processing" })
-    .eq("id", queueItem.call_id);
-
-  try {
-    const call = queueItem.call as { id: string; raw_notes: string; org_id: string };
-
-    // Run analysis
-    const result = await analyzeCall(call.id, call.raw_notes, call.org_id);
-
-    if (!result.success || !result.analysis) {
-      throw new Error(result.error || "Analysis failed");
-    }
-
-    // Save analysis
-    const { data: analysis, error: analysisError } = await supabase
-      .from("analyses")
-      .insert({
-        call_id: call.id,
-        ai_model: "gpt-4o",
-        grading_results_json: result.analysis,
-        overall_score: result.analysis.overallScore,
-        composite_score: result.analysis.compositeScore,
-        processing_time_ms: result.processingTimeMs,
-        token_usage: result.tokenUsage,
-      })
-      .select()
+  if (!template) {
+    // Fallback to any active template
+    const { data: anyTemplate } = await supabase
+      .from("templates")
+      .select("*")
+      .eq("org_id", orgId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
       .single();
 
-    if (analysisError) {
-      throw new Error("Failed to save analysis");
+    if (!anyTemplate) {
+      return { success: false, error: "No active template found for this organization" };
     }
 
-    // Save call_score_results if scorecard was used
-    if (result.scorecard) {
-      const analysisWithCriteria = result.analysis as unknown as { criteriaScores?: Record<string, CriterionScoreResult> };
-      const criteriaScores = analysisWithCriteria.criteriaScores;
-      const scorecardCriteria = result.scorecard.criteria as ScorecardCriterion[];
-
-      // Calculate total and percentage scores
-      let totalScore = 0;
-      let maxPossibleScore = 0;
-
-      if (criteriaScores) {
-        for (const data of Object.values(criteriaScores)) {
-          totalScore += data.weighted_score || 0;
-          maxPossibleScore += data.weight || 0;
-        }
-      } else {
-        // Fallback calculation
-        for (const criterion of scorecardCriteria) {
-          maxPossibleScore += criterion.max_score * (criterion.weight / 100);
-        }
-        totalScore = (result.analysis.compositeScore / 100) * maxPossibleScore;
-      }
-
-      const percentageScore = maxPossibleScore > 0
-        ? (totalScore / maxPossibleScore) * 100
-        : result.analysis.compositeScore;
-
-      await supabase.from("call_score_results").insert({
-        call_id: call.id,
-        scorecard_id: result.scorecard.id,
-        org_id: call.org_id,
-        total_score: totalScore,
-        max_possible_score: maxPossibleScore,
-        percentage_score: percentageScore,
-        criteria_scores: criteriaScores || {},
-        summary: result.analysis.executiveSummary,
-        strengths: result.analysis.strengths || [],
-        improvements: result.analysis.improvements || [],
-        scored_by: "ai",
-        scorecard_version: result.scorecard.version,
-        scorecard_snapshot: scorecardCriteria,
-      });
-    }
-
-    // Generate report
-    const report = generateReport(call, result.analysis, result.scorecard);
-
-    await supabase.from("reports").insert({
-      call_id: call.id,
-      analysis_id: analysis.id,
-      report_json: report,
-      status: "ready",
-    });
-
-    // Update call and queue status
-    await supabase
-      .from("calls")
-      .update({ status: "analyzed" })
-      .eq("id", call.id);
-
-    await supabase
-      .from("processing_queue")
-      .update({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-      })
-      .eq("id", queueItemId);
-
-    return true;
-  } catch (error) {
-    console.error("Queue processing error:", error);
-
-    const newAttempts = (queueItem.attempts || 0) + 1;
-    const maxAttempts = queueItem.max_attempts || 3;
-
-    if (newAttempts >= maxAttempts) {
-      // Max retries reached
-      await supabase
-        .from("processing_queue")
-        .update({
-          status: "failed",
-          attempts: newAttempts,
-          last_error: error instanceof Error ? error.message : "Unknown error",
-        })
-        .eq("id", queueItemId);
-
-      await supabase
-        .from("calls")
-        .update({ status: "failed" })
-        .eq("id", queueItem.call_id);
-    } else {
-      // Schedule retry with exponential backoff
-      const retryDelay = Math.pow(2, newAttempts) * 60000; // 2^n minutes
-      await supabase
-        .from("processing_queue")
-        .update({
-          status: "queued",
-          attempts: newAttempts,
-          last_error: error instanceof Error ? error.message : "Unknown error",
-          scheduled_at: new Date(Date.now() + retryDelay).toISOString(),
-        })
-        .eq("id", queueItemId);
-
-      await supabase
-        .from("calls")
-        .update({ status: "pending" })
-        .eq("id", queueItem.call_id);
-    }
-
-    return false;
+    return analyzeCallWithTemplate(rawNotes, anyTemplate as unknown as Template);
   }
+
+  return analyzeCallWithTemplate(rawNotes, template as unknown as Template);
 }
 
-// Generate report from analysis
-function generateReport(
-  call: { id: string; raw_notes: string; org_id: string },
-  analysis: AnalysisResults,
-  scorecard?: Scorecard
-) {
-  const scorecardCriteria = scorecard?.criteria as ScorecardCriterion[] | undefined;
-  const analysisWithCriteria = analysis as unknown as { criteriaScores?: Record<string, CriterionScoreResult> };
-  const criteriaScores = analysisWithCriteria.criteriaScores;
+async function analyzeCallWithTemplate(
+  rawNotes: string,
+  template: Template
+): Promise<{
+  success: boolean;
+  analysis?: {
+    overallScore: number;
+    compositeScore: number;
+    summary: string;
+    strengths: string[];
+    improvements: string[];
+    recommendations: string[];
+    gradingResults: Array<{
+      criterionId: string;
+      criterionName: string;
+      type: string;
+      score: number;
+      feedback: string;
+    }>;
+  };
+  processingTimeMs?: number;
+  tokenUsage?: { prompt: number; completion: number; total: number };
+  error?: string;
+}> {
+  const supabase = await createAdminClient();
 
-  // Build scorecard section with weights from scorecard if available
-  let scorecardSection;
-  if (scorecardCriteria && criteriaScores) {
-    scorecardSection = {
-      name: scorecard?.name || "Scorecard",
-      version: scorecard?.version || 1,
-      criteria: scorecardCriteria.map((c) => {
-        const score = criteriaScores[c.id];
-        return {
-          name: c.name,
-          score: score?.score || 0,
-          maxScore: c.max_score,
-          weight: c.weight,
-          weightedScore: score?.weighted_score || 0,
-          passed: score ? (score.score / score.max_score) >= 0.7 : false,
-        };
-      }),
-      finalScore: analysis.compositeScore,
-      passed: analysis.compositeScore >= 70,
-    };
-  } else {
-    // Legacy format
-    scorecardSection = {
-      criteria: (analysis.gradingResults || []).map((r) => ({
-        name: r.criterionName,
-        score: r.score || 0,
-        weight: 1,
-        passed: (r.score || 0) >= 70,
-      })),
-      finalScore: analysis.compositeScore,
-      passed: analysis.compositeScore >= 70,
-    };
+  const { data: criteria } = await supabase
+    .from("criteria")
+    .select("*")
+    .eq("template_id", template.id)
+    .order("sort_order");
+
+  const { data: groups } = await supabase
+    .from("criteria_groups")
+    .select("*")
+    .eq("template_id", template.id)
+    .order("sort_order");
+
+  if (!criteria || criteria.length === 0) {
+    return { success: false, error: "Template has no criteria" };
   }
+
+  const result = await analyzeWithTemplate(
+    rawNotes,
+    template,
+    criteria as Criteria[],
+    (groups || []) as CriteriaGroup[]
+  );
+
+  if (!result.success || !result.scores) {
+    return { success: false, error: result.error };
+  }
+
+  // Convert to legacy format
+  const totalWeightedScore = result.scores.reduce(
+    (sum, s) => sum + s.weightedScore,
+    0
+  );
+  const totalWeight = result.scores.reduce((sum, s) => {
+    const c = criteria.find((cr) => cr.id === s.criteriaId);
+    return sum + (c?.weight || 0);
+  }, 0);
+  const compositeScore =
+    totalWeight > 0 ? Math.round((totalWeightedScore / totalWeight) * 100) : 0;
 
   return {
-    version: "2.0",
-    generatedAt: new Date().toISOString(),
-    callSummary: {
-      title: `Call Analysis`,
-      date: new Date().toISOString(),
-      callerName: "Unknown", // Would be enriched from call data
+    success: true,
+    analysis: {
+      overallScore: compositeScore,
+      compositeScore,
+      summary: result.analysis?.summary || "",
+      strengths: result.analysis?.strengths || [],
+      improvements: result.analysis?.improvements || [],
+      recommendations: result.analysis?.actionItems || [],
+      gradingResults: result.scores.map((s) => {
+        const c = criteria.find((cr) => cr.id === s.criteriaId);
+        return {
+          criterionId: s.criteriaId,
+          criterionName: c?.name || "Unknown",
+          type: c?.criteria_type || "scale",
+          score: s.normalizedScore,
+          feedback: s.comment,
+        };
+      }),
     },
-    analysis,
-    scorecard: scorecardSection,
-    coaching: {
-      topStrengths: (analysis.strengths || []).slice(0, 3),
-      priorityImprovements: (analysis.improvements || []).slice(0, 3),
-      actionPlan: (analysis.recommendations || []).slice(0, 5),
-    },
+    processingTimeMs: result.processingTimeMs,
+    tokenUsage: result.tokenUsage,
   };
-}
-
-// Process pending queue items (called by cron or background job)
-export async function processQueue(maxItems: number = 10): Promise<number> {
-  const supabase = createAdminClient();
-
-  // Get pending items
-  const { data: items, error } = await supabase
-    .from("processing_queue")
-    .select("id")
-    .eq("status", "queued")
-    .lte("scheduled_at", new Date().toISOString())
-    .order("priority", { ascending: false })
-    .order("scheduled_at", { ascending: true })
-    .limit(maxItems);
-
-  if (error || !items || items.length === 0) {
-    return 0;
-  }
-
-  let processed = 0;
-  for (const item of items) {
-    const success = await processQueuedCall(item.id);
-    if (success) processed++;
-  }
-
-  return processed;
 }

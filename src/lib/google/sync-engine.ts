@@ -26,6 +26,7 @@ import {
   createSyncLog,
   updateSyncLog,
 } from "./storage";
+import { processNewTranscript, type TranscriptData } from "@/lib/auto-pipeline";
 import type {
   GoogleConnection,
   ConferenceRecord,
@@ -180,7 +181,7 @@ export async function syncConnectionTranscripts(
         // Save transcript
         const meetCode = getMeetingCode(conference) || "unknown";
 
-        await saveTranscript({
+        const savedTranscript = await saveTranscript({
           userId: connection.user_id,
           connectionId: connection.id,
           meetingCode: meetCode,
@@ -198,6 +199,30 @@ export async function syncConnectionTranscripts(
 
         result.transcriptsSaved++;
         result.newTranscripts.push(conference.name);
+
+        // Trigger auto-pipeline: create call record for analysis
+        try {
+          const pipelineData: TranscriptData = {
+            id: savedTranscript.id,
+            userId: connection.user_id,
+            connectionId: connection.id,
+            meetingCode: meetCode,
+            conferenceRecordName: conference.name,
+            textContent,
+            meetingStartTime: conference.startTime,
+            meetingEndTime: conference.endTime,
+            meetingSpaceName: conference.space?.name,
+          };
+          const pipelineResult = await processNewTranscript(pipelineData);
+          if (pipelineResult.success) {
+            console.log("[SyncEngine] Pipeline triggered for transcript:", savedTranscript.id, "call:", pipelineResult.callId);
+          } else {
+            console.warn("[SyncEngine] Pipeline failed for transcript:", savedTranscript.id, pipelineResult.error);
+          }
+        } catch (pipelineError) {
+          // Don't fail the sync if pipeline fails
+          console.error("[SyncEngine] Pipeline error:", pipelineError);
+        }
       } catch (conferenceError) {
         result.errors.push(
           `Conference ${conference.name}: ${conferenceError instanceof Error ? conferenceError.message : "Unknown error"}`

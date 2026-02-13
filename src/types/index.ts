@@ -7,7 +7,7 @@ export interface Call {
   title?: string;
   raw_notes?: string;
   status: "pending" | "processing" | "analyzed" | "failed";
-  source: "manual" | "webhook" | "upload";
+  source: "google_meet" | "calendar" | "api" | "manual" | "webhook" | "upload";
   duration?: number;
   call_timestamp: string;
   customer_name?: string;
@@ -17,6 +17,9 @@ export interface Call {
   external_id?: string;
   org_id: string;
   caller_id?: string;
+  agent_id?: string;
+  meet_code?: string;
+  recording_url?: string;
   created_at: string;
   updated_at: string;
   metadata?: Record<string, unknown>;
@@ -97,45 +100,20 @@ export interface DashboardStats {
     date: string;
   }>;
   period: string;
-}
-
-export interface Caller {
-  id: string;
-  name: string;
-  email?: string;
-  team?: string;
-  department?: string;
-  org_id: string;
-  user_id?: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  metadata?: Record<string, unknown>;
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-    avatar_url?: string;
-  };
-  calls?: Call[];
+  // Pipeline status
+  pendingAnalysis?: number;
+  connectedAccountsCount?: number;
+  activeSalespeopleCount?: number;
+  // Session counts
+  pendingSessionsCount?: number;
+  inProgressSessionsCount?: number;
+  completedSessionsCount?: number;
+  totalActiveSessionsCount?: number;
 }
 
 export interface ChartData {
   name: string;
   value: number;
-}
-
-export interface Insight {
-  id: string;
-  call_id?: string;
-  org_id: string;
-  type: "strength" | "improvement" | "objection" | "opportunity" | "risk" | "general";
-  title: string;
-  description: string;
-  importance: "high" | "medium" | "low";
-  timestamp?: number;
-  created_at: string;
-  metadata?: Record<string, unknown>;
 }
 
 export interface PaginatedResponse<T> {

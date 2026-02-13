@@ -3,9 +3,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 
 interface SidebarContextType {
-  isCollapsed: boolean;
   isMobileOpen: boolean;
-  toggleCollapse: () => void;
   toggleMobile: () => void;
   closeMobile: () => void;
 }
@@ -13,12 +11,7 @@ interface SidebarContextType {
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-
-  const toggleCollapse = useCallback(() => {
-    setIsCollapsed((prev) => !prev);
-  }, []);
 
   const toggleMobile = useCallback(() => {
     setIsMobileOpen((prev) => !prev);
@@ -28,7 +21,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     setIsMobileOpen(false);
   }, []);
 
-  // Close mobile sidebar on route change
+  // Close mobile sidebar on resize to desktop
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
@@ -55,9 +48,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   return (
     <SidebarContext.Provider
       value={{
-        isCollapsed,
         isMobileOpen,
-        toggleCollapse,
         toggleMobile,
         closeMobile,
       }}

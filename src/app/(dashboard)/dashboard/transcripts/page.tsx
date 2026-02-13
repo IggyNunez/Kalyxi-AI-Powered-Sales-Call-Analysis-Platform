@@ -233,7 +233,7 @@ export default function TranscriptsPage() {
               </p>
               {transcripts.length === 0 && (
                 <Link
-                  href="/dashboard/google"
+                  href="/dashboard/settings?tab=connections"
                   className="inline-flex items-center gap-2 mt-4 h-10 px-5 py-2 text-sm font-medium border-2 border-input bg-background shadow-sm rounded-lg hover:bg-accent hover:text-accent-foreground hover:border-primary/50 transition-all"
                 >
                   Connect Google Account

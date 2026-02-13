@@ -24,6 +24,8 @@ import {
   Share2,
   MoreHorizontal,
   Sparkles,
+  ExternalLink,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -201,10 +203,9 @@ export default function CallDetailPage() {
                   <p className="text-indigo-100 flex items-center gap-2">
                     <User className="h-4 w-4" />
                     {call.caller.name}
-                    {call.caller.team && <span className="opacity-75">• {call.caller.team}</span>}
                   </p>
                 )}
-                <div className="flex items-center gap-4 mt-3 text-sm text-indigo-100">
+                <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-indigo-100">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
                     {formatDateTime(callDate)}
@@ -221,6 +222,12 @@ export default function CallDetailPage() {
                       {call.customer_company}
                     </span>
                   )}
+                  {call.meet_code && (
+                    <span className="flex items-center gap-1">
+                      <Video className="h-4 w-4" />
+                      {call.meet_code}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -233,6 +240,19 @@ export default function CallDetailPage() {
                 size="sm"
                 className="text-white hover:bg-white/20 border-0"
               />
+              {call.recording_url && (
+                <a
+                  href={call.recording_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 gap-2">
+                    <Play className="h-4 w-4" />
+                    Recording
+                    <ExternalLink className="h-3 w-3" />
+                  </Button>
+                </a>
+              )}
               <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
                 <Share2 className="h-5 w-5" />
               </Button>
@@ -744,14 +764,22 @@ export default function CallDetailPage() {
                 <CardHeader className="bg-gray-50 border-b flex flex-row items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="h-5 w-5 text-gray-600" />
-                    Call Notes / Transcript
+                    Transcript
                   </CardTitle>
-                  {call.raw_notes && (
-                    <Button variant="outline" size="sm">
-                      <Download className="h-4 w-4 mr-2" />
-                      Export
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {call.source === "google_meet" && call.meet_code && (
+                      <Badge variant="secondary" className="gap-1">
+                        <Video className="h-3 w-3" />
+                        Google Meet
+                      </Badge>
+                    )}
+                    {call.raw_notes && (
+                      <Button variant="outline" size="sm">
+                        <Download className="h-4 w-4 mr-2" />
+                        Export
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="p-0">
                   {call.raw_notes ? (
@@ -761,8 +789,10 @@ export default function CallDetailPage() {
                   ) : (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
                       <MessageSquare className="h-12 w-12 text-gray-300" />
-                      <p className="mt-4 text-gray-500">No notes or transcript available</p>
-                      <p className="text-sm text-gray-400">Notes will appear here once provided</p>
+                      <p className="mt-4 text-gray-500">No transcript available</p>
+                      <p className="text-sm text-gray-400">
+                        Transcripts are auto-captured from Google Meet calls
+                      </p>
                     </div>
                   )}
                 </CardContent>
@@ -773,7 +803,7 @@ export default function CallDetailPage() {
           {/* Linked Coaching Sessions */}
           <LinkedSessionsPanel
             callId={call.id}
-            callerId={call.caller?.id}
+            callerId={call.agent_id || call.caller?.id}
             callerName={call.caller?.name}
           />
         </>

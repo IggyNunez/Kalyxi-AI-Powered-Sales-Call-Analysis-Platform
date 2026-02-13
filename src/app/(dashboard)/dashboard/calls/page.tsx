@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Plus,
   Search,
   RefreshCw,
   Phone,
@@ -189,9 +188,9 @@ export default function CallsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">My Calls</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Calls</h1>
           <p className="text-muted-foreground mt-1">
-            {pagination.total} call{pagination.total !== 1 ? "s" : ""} in your organization
+            {pagination.total} auto-captured call{pagination.total !== 1 ? "s" : ""}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -206,10 +205,10 @@ export default function CallsPage() {
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
           </Button>
           {isAdmin && (
-            <Link href="/dashboard/submit">
+            <Link href="/dashboard/settings?tab=connections">
               <Button variant="gradient" className="gap-2 shadow-lg shadow-primary/20">
-                <Plus className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Add Call</span>
+                <Calendar className="h-4 w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Connect Calendar</span>
               </Button>
             </Link>
           )}
@@ -353,7 +352,7 @@ export default function CallsPage() {
                           Call Details {getSortIcon("customer")}
                         </button>
                       </th>
-                      <th className="text-left p-4 font-medium text-muted-foreground hidden md:table-cell">Caller</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground hidden md:table-cell">Salesperson</th>
                       <th className="text-left p-4 font-medium text-muted-foreground">
                         <button type="button" onClick={() => handleSort("date")} className="flex items-center gap-2 hover:text-foreground transition-colors">
                           Date {getSortIcon("date")}
@@ -527,19 +526,14 @@ export default function CallsPage() {
             <div className="rounded-full bg-gradient-to-br from-primary/20 to-indigo-500/20 p-8">
               <Phone className="h-12 w-12 text-primary" />
             </div>
-            {isAdmin && !search && filter === "all" && (
-              <div className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
-                <Plus className="h-4 w-4 text-white" />
-              </div>
-            )}
           </div>
           <h3 className="font-semibold text-xl">No calls found</h3>
           <p className="mt-2 text-muted-foreground max-w-md">
             {search || filter !== "all"
               ? "Try adjusting your search or filters to find what you're looking for"
               : isAdmin
-                ? "Upload your first sales call to start getting AI-powered insights and coaching"
-                : "No calls have been assigned to you yet. Check back soon!"}
+                ? "Connect your Google Calendar to start auto-capturing sales calls from Google Meet"
+                : "No calls have been captured yet. Check back after your next Google Meet!"}
           </p>
           {search || filter !== "all" ? (
             <Button variant="outline" className="mt-6 gap-2" onClick={() => { setSearch(""); setFilter("all"); }}>
@@ -548,10 +542,10 @@ export default function CallsPage() {
             </Button>
           ) : (
             isAdmin && (
-              <Link href="/dashboard/submit" className="mt-6">
+              <Link href="/dashboard/settings?tab=connections" className="mt-6">
                 <Button variant="gradient" className="gap-2 shadow-lg shadow-primary/20">
-                  <Plus className="h-4 w-4 flex-shrink-0" />
-                  <span>Add Your First Call</span>
+                  <Calendar className="h-4 w-4 flex-shrink-0" />
+                  <span>Connect Google Calendar</span>
                 </Button>
               </Link>
             )

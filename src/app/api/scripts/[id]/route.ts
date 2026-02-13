@@ -175,46 +175,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       return errorResponse("Script not found", 404);
     }
 
-    // Check if script is linked to any scorecards
-    const { count } = await supabase
-      .from("scorecards")
-      .select("*", { count: "exact", head: true })
-      .eq("script_id", id);
-
-    if (count && count > 0) {
-      // Archive instead of delete if in use
-      const { error } = await supabase
-        .from("scripts")
-        .update({
-          status: "archived",
-          archived_at: new Date().toISOString(),
-          is_default: false,
-        })
-        .eq("id", id);
-
-      if (error) {
-        console.error("Error archiving script:", error);
-        return errorResponse("Failed to archive script", 500);
-      }
-
-      await createAuditLog(
-        orgId!,
-        user!.id,
-        "archive",
-        "script",
-        id,
-        existing,
-        { status: "archived" },
-        request
-      );
-
-      return NextResponse.json({
-        message: "Script archived (linked to scorecards)",
-        archived: true,
-      });
-    }
-
-    // Delete if not in use
+    // Delete script
     const { error } = await supabase
       .from("scripts")
       .delete()

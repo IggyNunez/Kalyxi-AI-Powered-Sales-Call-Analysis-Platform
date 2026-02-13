@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   // Handle OAuth errors from Google
   if (error) {
     console.error("[Google Callback] OAuth error:", error, errorDescription);
-    const redirectUrl = new URL("/dashboard/google", url.origin);
+    const redirectUrl = new URL("/dashboard/settings?tab=connections", url.origin);
     redirectUrl.searchParams.set("error", error);
     if (errorDescription) {
       redirectUrl.searchParams.set("error_description", errorDescription);
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   // Validate required parameters
   if (!code || !state) {
     console.error("[Google Callback] Missing code or state");
-    const redirectUrl = new URL("/dashboard/google", url.origin);
+    const redirectUrl = new URL("/dashboard/settings?tab=connections", url.origin);
     redirectUrl.searchParams.set("error", "invalid_request");
     redirectUrl.searchParams.set("error_description", "Missing required parameters");
     return NextResponse.redirect(redirectUrl);
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
 
     if (user.id !== statePayload.userId) {
       console.error("[Google Callback] User ID mismatch");
-      const redirectUrl = new URL("/dashboard/google", url.origin);
+      const redirectUrl = new URL("/dashboard/settings?tab=connections", url.origin);
       redirectUrl.searchParams.set("error", "invalid_state");
       redirectUrl.searchParams.set("error_description", "Session mismatch - please try again");
       return NextResponse.redirect(redirectUrl);
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     // Verify we got a refresh token (required for offline access)
     if (!tokens.refresh_token) {
       console.error("[Google Callback] No refresh token received");
-      const redirectUrl = new URL("/dashboard/google", url.origin);
+      const redirectUrl = new URL("/dashboard/settings?tab=connections", url.origin);
       redirectUrl.searchParams.set("error", "no_refresh_token");
       redirectUrl.searchParams.set(
         "error_description",
@@ -105,7 +105,7 @@ export async function GET(request: Request) {
     });
 
     // Redirect to success page or custom redirect
-    const redirectAfter = statePayload.redirectUrl || "/dashboard/google";
+    const redirectAfter = statePayload.redirectUrl || "/dashboard/settings?tab=connections";
     const redirectUrl = new URL(redirectAfter, url.origin);
     redirectUrl.searchParams.set("success", "true");
     redirectUrl.searchParams.set("email", googleUser.email);
@@ -114,7 +114,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("[Google Callback] Error processing callback:", err);
 
-    const redirectUrl = new URL("/dashboard/google", url.origin);
+    const redirectUrl = new URL("/dashboard/settings?tab=connections", url.origin);
 
     if (err instanceof Error) {
       if (err.message.includes("Invalid state")) {

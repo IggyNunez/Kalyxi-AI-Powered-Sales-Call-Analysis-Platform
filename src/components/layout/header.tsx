@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search, ChevronDown, Settings, User, LogOut, Sparkles, Menu } from "lucide-react";
+import { Search, ChevronDown, Settings, User, LogOut, Menu } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,11 +23,9 @@ export function Header() {
   const router = useRouter();
   const { profile, organization, role, signOut } = useAuth();
   const { toggleMobile } = useSidebar();
-  const [showNotifications, setShowNotifications] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // Prevent hydration mismatch with Radix UI dropdowns
   useEffect(() => {
     setMounted(true); // eslint-disable-line react-hooks/set-state-in-effect
   }, []);
@@ -47,9 +45,6 @@ export function Header() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
-
-  // Mock notifications - replace with real data later
-  const notifications: { id: string; title: string; message: string; time: string; read: boolean }[] = [];
 
   const initials = profile?.name
     ?.split(" ")
@@ -72,7 +67,6 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border/50 bg-background/80 backdrop-blur-xl px-4 lg:px-6 transition-all duration-300">
-      {/* Subtle gradient line at top */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
 
       <div className="flex items-center gap-3 lg:gap-4">
@@ -98,7 +92,7 @@ export function Header() {
           )} />
           <Input
             type="search"
-            placeholder="Search calls, callers, reports..."
+            placeholder="Search templates, calls..."
             className={cn(
               "pl-10 bg-muted/50 border-transparent",
               "focus:bg-background focus:border-primary/50",
@@ -124,84 +118,6 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* AI Status Indicator */}
-        <div className="hidden lg:flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 border border-emerald-500/20">
-          <div className="relative">
-            <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          </div>
-          <span className="text-xs font-medium text-emerald-600">AI Active</span>
-        </div>
-
-        {/* Notifications */}
-        {mounted ? (
-          <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "relative rounded-xl hover:bg-primary/5 transition-all duration-200",
-                  showNotifications && "bg-primary/10"
-                )}
-              >
-                <Bell className={cn(
-                  "h-5 w-5 transition-colors",
-                  showNotifications ? "text-primary" : "text-muted-foreground"
-                )} />
-                {notifications.length > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-red-500 to-pink-500 text-[10px] font-bold text-white shadow-lg shadow-red-500/30 animate-bounce-subtle">
-                    {notifications.length > 9 ? "9+" : notifications.length}
-                  </span>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 p-0 overflow-hidden animate-scale-in">
-              <div className="bg-gradient-to-r from-primary/10 to-indigo-500/10 p-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">Notifications</h3>
-                  {notifications.length > 0 && (
-                    <Button variant="ghost" size="sm" className="h-auto p-0 text-xs text-primary hover:text-primary/80">
-                      Mark all as read
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <DropdownMenuSeparator className="m-0" />
-              {notifications.length === 0 ? (
-                <div className="py-12 text-center">
-                  <div className="mx-auto h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
-                    <Bell className="h-6 w-6 text-muted-foreground/50" />
-                  </div>
-                  <p className="text-sm font-medium text-muted-foreground">No notifications</p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">You&apos;re all caught up!</p>
-                </div>
-              ) : (
-                <div className="max-h-80 overflow-y-auto">
-                  {notifications.map((notification, index) => (
-                    <DropdownMenuItem
-                      key={notification.id}
-                      className={cn(
-                        "flex flex-col items-start gap-1 p-4 cursor-pointer border-b border-border/50 last:border-0",
-                        !notification.read && "bg-primary/5"
-                      )}
-                      style={{ animationDelay: `${index * 50}ms` }}
-                    >
-                      <p className="text-sm font-medium">{notification.title}</p>
-                      <p className="text-xs text-muted-foreground">{notification.message}</p>
-                      <p className="text-xs text-muted-foreground/70">{notification.time}</p>
-                    </DropdownMenuItem>
-                  ))}
-                </div>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Button variant="ghost" size="icon" className="relative rounded-xl hover:bg-primary/5">
-            <Bell className="h-5 w-5 text-muted-foreground" />
-          </Button>
-        )}
-
         {/* User Menu */}
         {mounted ? (
           <DropdownMenu>

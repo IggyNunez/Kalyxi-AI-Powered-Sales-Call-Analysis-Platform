@@ -1,7 +1,8 @@
 // Run this script to create your first organization and admin user
 // Usage: npx tsx scripts/seed-admin.ts
 
-import "dotenv/config";
+import { config } from "dotenv";
+config({ path: ".env.local" });
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -84,7 +85,7 @@ async function seedAdmin() {
       org_id: org.id,
       email,
       name: email.split("@")[0],
-      role: "admin",
+      role: "superadmin",
     });
 
     if (userError) {
@@ -100,7 +101,7 @@ async function seedAdmin() {
     console.log(`Organization: ${org.name}`);
     console.log(`Email: ${email}`);
     console.log(`Password: ${password}`);
-    console.log(`Role: admin`);
+    console.log(`Role: superadmin`);
     console.log(`Webhook Secret: ${org.webhook_secret}`);
     console.log("================================");
     console.log("\nYou can now log in at http://localhost:3000/login");

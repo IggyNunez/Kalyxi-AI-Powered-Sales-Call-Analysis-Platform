@@ -37,7 +37,7 @@ export async function POST(
       return errorResponse("Call not found", 404);
     }
 
-    if (!call.raw_notes && !call.transcription) {
+    if (!call.raw_notes) {
       return errorResponse("No content available for analysis", 400);
     }
 
@@ -52,8 +52,8 @@ export async function POST(
       await supabase.from("analyses").delete().eq("call_id", id);
       await supabase.from("reports").delete().eq("call_id", id);
 
-      // Run analysis
-      const content = call.transcription || call.raw_notes;
+      // Run analysis using template system
+      const content = call.raw_notes;
       const result = await analyzeCall(id, content, orgId!);
 
       if (!result.success || !result.analysis) {
@@ -81,13 +81,13 @@ export async function POST(
 
       // Generate and save report
       const reportJson = {
-        version: "1.0",
+        version: "2.0",
         generatedAt: new Date().toISOString(),
         callSummary: {
           title: `Call Analysis - ${call.customer_name || "Unknown Customer"}`,
           date: call.call_timestamp,
           duration: call.duration,
-          callerName: "Unknown", // Would be enriched
+          callerName: "Unknown",
           customerInfo: {
             name: call.customer_name,
             company: call.customer_company,
@@ -95,7 +95,7 @@ export async function POST(
         },
         analysis: result.analysis,
         scorecard: {
-          criteria: result.analysis.gradingResults.map((r) => ({
+          criteria: result.analysis.gradingResults.map((r: { criterionName: string; score: number }) => ({
             name: r.criterionName,
             score: r.score || 0,
             weight: 1,
@@ -145,7 +145,6 @@ export async function POST(
         .from("calls")
         .select(`
           *,
-          caller:callers(id, name, team),
           analyses(
             id,
             ai_model,

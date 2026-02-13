@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTemplateBuilderStore } from "@/stores/template-builder-store";
-import TemplateBuilder from "@/components/templates/TemplateBuilder";
-import { Template, CriteriaGroup, Criteria } from "@/types/database";
+import TemplateWizard from "@/components/templates/TemplateWizard";
+import type { Template, CriteriaGroup, Criteria } from "@/types/database";
 
 export default function EditTemplatePage() {
   const params = useParams();
@@ -22,11 +22,7 @@ export default function EditTemplatePage() {
         );
 
         if (!response.ok) {
-          if (response.status === 404) {
-            setError("Template not found");
-          } else {
-            setError("Failed to load template");
-          }
+          setError(response.status === 404 ? "Template not found" : "Failed to load template");
           return;
         }
 
@@ -35,7 +31,6 @@ export default function EditTemplatePage() {
           groups?: (CriteriaGroup & { criteria?: Criteria[] })[];
         };
 
-        // Extract groups and criteria
         const groups: CriteriaGroup[] = [];
         const criteria: Criteria[] = [];
 
@@ -75,16 +70,13 @@ export default function EditTemplatePage() {
   if (loading) {
     return (
       <div className="animate-fade-in p-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-3xl mx-auto">
           <div className="h-8 w-48 bg-muted rounded-lg animate-pulse mb-4" />
           <div className="h-4 w-64 bg-muted rounded animate-pulse mb-8" />
-          <div className="grid grid-cols-3 gap-6">
-            <div className="col-span-2 space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />
-              ))}
-            </div>
-            <div className="h-96 rounded-xl bg-muted animate-pulse" />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />
+            ))}
           </div>
         </div>
       </div>
@@ -108,5 +100,5 @@ export default function EditTemplatePage() {
     );
   }
 
-  return <TemplateBuilder isNew={false} />;
+  return <TemplateWizard isNew={false} />;
 }
