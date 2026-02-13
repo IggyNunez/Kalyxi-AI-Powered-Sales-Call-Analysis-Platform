@@ -85,6 +85,7 @@ export async function createOrUpdateGoogleConnection(
     token_expiry: tokenExpiry,
     scopes: input.scopes,
     last_sync_error: null,
+    maps_to_user_id: input.userId, // Default: map to the connecting user
   };
 
   // Upsert based on user_id + google_email
@@ -110,6 +111,7 @@ export async function createOrUpdateGoogleConnection(
     last_sync_error: conn.last_sync_error,
     created_at: conn.created_at,
     is_token_valid: new Date(conn.token_expiry) > new Date(),
+    maps_to_user_id: conn.maps_to_user_id || null,
   };
 }
 
@@ -171,7 +173,7 @@ export async function listUserGoogleConnections(
 
   const { data, error } = await supabase
     .from("google_connections")
-    .select("id, google_email, scopes, last_sync_at, last_sync_error, created_at, token_expiry")
+    .select("id, google_email, scopes, last_sync_at, last_sync_error, created_at, token_expiry, maps_to_user_id")
     .eq("user_id", validUserId)
     .order("created_at", { ascending: false });
 
@@ -187,6 +189,7 @@ export async function listUserGoogleConnections(
     last_sync_error: conn.last_sync_error,
     created_at: conn.created_at,
     is_token_valid: new Date(conn.token_expiry) > new Date(),
+    maps_to_user_id: conn.maps_to_user_id || null,
   }));
 }
 

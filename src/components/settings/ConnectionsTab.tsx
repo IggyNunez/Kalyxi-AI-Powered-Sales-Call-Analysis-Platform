@@ -34,6 +34,14 @@ interface GoogleConnection {
   last_sync_error: string | null;
   created_at: string;
   is_token_valid: boolean;
+  maps_to_user_id: string | null;
+}
+
+interface TeamMember {
+  id: string;
+  name?: string;
+  email: string;
+  role: string;
 }
 
 interface ExtensionToken {
@@ -51,6 +59,7 @@ export function ConnectionsTab() {
   const searchParams = useSearchParams();
   const [connections, setConnections] = useState<GoogleConnection[]>([]);
   const [tokens, setTokens] = useState<ExtensionToken[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -59,6 +68,12 @@ export function ConnectionsTab() {
   const [showToken, setShowToken] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [quickAddFor, setQuickAddFor] = useState<string | null>(null);
+  const [quickAddName, setQuickAddName] = useState("");
+  const [quickAddEmail, setQuickAddEmail] = useState("");
+  const [quickAdding, setQuickAdding] = useState(false);
+
+  const [newlyConnectedEmail, setNewlyConnectedEmail] = useState<string | null>(null);
 
   // Handle OAuth callback messages
   useEffect(() => {
@@ -69,6 +84,7 @@ export function ConnectionsTab() {
 
     if (success === "true" && email) {
       setSuccessMessage(`Successfully connected ${email}`);
+      setNewlyConnectedEmail(email);
       window.history.replaceState({}, "", "/dashboard/settings?tab=connections");
     } else if (error) {
       setErrorMessage(errorDescription || `OAuth error: ${error}`);
@@ -76,12 +92,45 @@ export function ConnectionsTab() {
     }
   }, [searchParams]);
 
+  // Auto-match newly connected Google email to existing team member
+  useEffect(() => {
+    if (!newlyConnectedEmail || connections.length === 0 || teamMembers.length === 0) return;
+
+    const connection = connections.find(
+      (c) => c.google_email === newlyConnectedEmail && !c.maps_to_user_id
+    );
+    if (!connection) {
+      setNewlyConnectedEmail(null);
+      return;
+    }
+
+    const matchingMember = teamMembers.find(
+      (m) => m.email.toLowerCase() === newlyConnectedEmail.toLowerCase()
+    );
+
+    if (matchingMember) {
+      // Auto-assign the connection to the matching team member
+      handleAttributionChange(connection.id, matchingMember.id);
+      setSuccessMessage(
+        `Connected ${newlyConnectedEmail} and auto-assigned to ${matchingMember.name || matchingMember.email}`
+      );
+    } else {
+      // Prompt user to assign - open the quick-add form for this connection
+      setQuickAddFor(connection.id);
+      setQuickAddEmail(newlyConnectedEmail);
+      setQuickAddName("");
+    }
+
+    setNewlyConnectedEmail(null);
+  }, [newlyConnectedEmail, connections, teamMembers]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [connectionsRes, tokensRes] = await Promise.all([
+      const [connectionsRes, tokensRes, teamRes] = await Promise.all([
         fetch("/api/google/connections"),
         fetch("/api/extension/token"),
+        fetch("/api/team?is_active=true&pageSize=100"),
       ]);
 
       if (connectionsRes.ok) {
@@ -92,6 +141,11 @@ export function ConnectionsTab() {
       if (tokensRes.ok) {
         const data = await tokensRes.json();
         setTokens(data.tokens || []);
+      }
+
+      if (teamRes.ok) {
+        const data = await teamRes.json();
+        setTeamMembers(data.data || []);
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -226,6 +280,68 @@ export function ConnectionsTab() {
     }
   };
 
+  const handleAttributionChange = async (connectionId: string, userId: string | null) => {
+    try {
+      const response = await fetch(`/api/google/connections/${connectionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maps_to_user_id: userId }),
+      });
+
+      if (response.ok) {
+        setConnections((prev) =>
+          prev.map((c) =>
+            c.id === connectionId ? { ...c, maps_to_user_id: userId } : c
+          )
+        );
+        const userName = teamMembers.find((m) => m.id === userId);
+        setSuccessMessage(
+          userId
+            ? `Calls will be graded for ${userName?.name || userName?.email || "selected user"}`
+            : "Attribution cleared"
+        );
+      } else {
+        const data = await response.json();
+        setErrorMessage(data.error || "Failed to update attribution");
+      }
+    } catch {
+      setErrorMessage("Failed to update attribution");
+    }
+  };
+
+  const handleQuickAdd = async (connectionId: string) => {
+    if (!quickAddName.trim() || !quickAddEmail.trim()) return;
+
+    setQuickAdding(true);
+    try {
+      const response = await fetch("/api/team/quick-add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: quickAddName.trim(), email: quickAddEmail.trim() }),
+      });
+
+      if (response.ok) {
+        const { data: newUser } = await response.json();
+        setTeamMembers((prev) => [...prev, newUser]);
+
+        // Auto-assign this connection to the new user
+        await handleAttributionChange(connectionId, newUser.id);
+
+        setQuickAddFor(null);
+        setQuickAddName("");
+        setQuickAddEmail("");
+        setSuccessMessage(`Added ${newUser.name} and assigned this Google account`);
+      } else {
+        const data = await response.json();
+        setErrorMessage(data.error || "Failed to add team member");
+      }
+    } catch {
+      setErrorMessage("Failed to add team member");
+    } finally {
+      setQuickAdding(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setSuccessMessage("Copied to clipboard");
@@ -326,6 +442,76 @@ export function ConnectionsTab() {
                           </span>
                         )}
                       </div>
+
+                      {/* Attribution dropdown */}
+                      <div className="flex items-center gap-2 mt-3">
+                        <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                          Grade calls for:
+                        </Label>
+                        <select
+                          value={connection.maps_to_user_id || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === "__add_new__") {
+                              setQuickAddFor(connection.id);
+                              setQuickAddEmail(connection.google_email);
+                              setQuickAddName("");
+                            } else {
+                              handleAttributionChange(connection.id, value || null);
+                            }
+                          }}
+                          className="h-8 rounded-md border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary max-w-[220px]"
+                        >
+                          <option value="">— Not assigned —</option>
+                          {teamMembers.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.name || member.email}
+                            </option>
+                          ))}
+                          <option value="__add_new__">+ Add new person...</option>
+                        </select>
+                      </div>
+
+                      {/* Quick-add form */}
+                      {quickAddFor === connection.id && (
+                        <div className="mt-3 p-3 rounded-lg border bg-muted/30 space-y-2">
+                          <p className="text-xs font-medium">Add a new team member</p>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Name"
+                              value={quickAddName}
+                              onChange={(e) => setQuickAddName(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                            <Input
+                              placeholder="Email"
+                              type="email"
+                              value={quickAddEmail}
+                              onChange={(e) => setQuickAddEmail(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleQuickAdd(connection.id)}
+                              disabled={quickAdding || !quickAddName.trim() || !quickAddEmail.trim()}
+                              className="h-7 text-xs gap-1"
+                            >
+                              {quickAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                              Add & Assign
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setQuickAddFor(null); setQuickAddName(""); setQuickAddEmail(""); }}
+                              className="h-7 text-xs"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button

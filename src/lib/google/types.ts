@@ -42,6 +42,7 @@ export interface GoogleConnection {
   last_sync_at: string | null;
   last_sync_error: string | null;
   sync_cursor: string | null;
+  maps_to_user_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +58,7 @@ export interface GoogleConnectionPublic {
   last_sync_error: string | null;
   created_at: string;
   is_token_valid: boolean;
+  maps_to_user_id: string | null;
 }
 
 /**

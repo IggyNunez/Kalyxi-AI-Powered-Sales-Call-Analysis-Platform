@@ -70,7 +70,21 @@ export async function processNewTranscript(
       return { success: false, error: "User or org not found" };
     }
 
-    // 2. Check if a call already exists for this transcript
+    // 2. Look up who this connection maps to (attribution)
+    let agentId = user.id; // default: the user who connected
+    if (transcript.connectionId) {
+      const { data: connection } = await supabase
+        .from("google_connections")
+        .select("maps_to_user_id")
+        .eq("id", transcript.connectionId)
+        .single();
+
+      if (connection?.maps_to_user_id) {
+        agentId = connection.maps_to_user_id;
+      }
+    }
+
+    // 3. Check if a call already exists for this transcript
     const { data: existingCall } = await supabase
       .from("calls")
       .select("id")
@@ -81,7 +95,7 @@ export async function processNewTranscript(
       return { success: true, callId: existingCall.id };
     }
 
-    // 3. Calculate duration from meeting times
+    // 4. Calculate duration from meeting times
     let duration: number | null = null;
     if (transcript.meetingStartTime && transcript.meetingEndTime) {
       const start = new Date(transcript.meetingStartTime).getTime();
@@ -89,12 +103,12 @@ export async function processNewTranscript(
       duration = Math.round((end - start) / 1000); // seconds
     }
 
-    // 4. Create call record
+    // 5. Create call record
     const { data: call, error: callError } = await supabase
       .from("calls")
       .insert({
         org_id: user.org_id,
-        agent_id: user.id,
+        agent_id: agentId,
         source: "google_meet",
         status: "pending",
         raw_notes: transcript.textContent,
