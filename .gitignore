@@ -48,6 +48,7 @@ next-env.d.ts
 !package-lock.json
 !tsconfig.json
 !*.config.json
+!vercel.json
 *-service-account*.txt
 *-service-account*.json
 google-*.json
