@@ -22,6 +22,7 @@ import {
   Target,
   Trash2,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -157,6 +158,12 @@ function SessionCard({
                   )}
                 >
                   {session.total_score.toFixed(1)}%
+                </Badge>
+              )}
+              {session.call_id && (
+                <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50 gap-1 text-xs">
+                  <Sparkles className="h-3 w-3" />
+                  AI
                 </Badge>
               )}
               {session.has_auto_fail && (
@@ -378,10 +385,10 @@ export default function SessionsPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
             <ClipboardCheck className="h-8 w-8 text-primary" />
-            Scoring Sessions
+            Coaching Sessions
           </h1>
           <p className="text-muted-foreground mt-1">
-            Score and review coaching sessions
+            Review AI-analyzed calls and coaching sessions
           </p>
         </div>
         <div className="flex items-center gap-2">

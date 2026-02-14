@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Home,
+  ClipboardCheck,
   ClipboardList,
   Settings,
   LogOut,
@@ -31,7 +32,8 @@ interface NavItem {
 
 const navigation: NavItem[] = [
   { name: "Home", href: "/dashboard", icon: Home },
-  { name: "My Templates", href: "/dashboard/templates", icon: ClipboardList },
+  { name: "Sessions", href: "/dashboard/sessions", icon: ClipboardCheck },
+  { name: "Templates", href: "/dashboard/templates", icon: ClipboardList },
 ];
 
 function NavIcon({

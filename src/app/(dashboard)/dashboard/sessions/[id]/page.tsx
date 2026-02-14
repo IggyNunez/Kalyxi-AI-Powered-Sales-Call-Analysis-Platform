@@ -15,14 +15,16 @@ import {
   CheckCircle2,
   AlertCircle,
   Eye,
-  Loader2,
   Target,
   ExternalLink,
+  Sparkles,
+  FileText,
+  PenTool,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/components/providers/auth-provider";
 import { cn } from "@/lib/utils";
 import {
@@ -37,14 +39,45 @@ import {
 import ScoringInterface from "@/components/sessions/ScoringInterface";
 import ScoreSummary from "@/components/sessions/ScoreSummary";
 import { CallContextPanel } from "@/components/sessions/CallContextPanel";
+import { AIInsightsPanel } from "@/components/sessions/AIInsightsPanel";
+import { TranscriptViewer } from "@/components/sessions/TranscriptViewer";
+import { SessionScoreOverviewCard } from "@/components/sessions/SessionScoreOverviewCard";
 
 interface SessionWithRelations extends Session {
   template?: Template;
-  templates?: Template; // API returns templates, not template
+  templates?: Template;
   coach?: { id: string; name: string; avatar_url?: string };
   agent?: { id: string; name: string; avatar_url?: string };
   call?: { id: string; title?: string };
   calls?: { id: string; customer_name?: string };
+}
+
+interface AnalysisData {
+  summary: string;
+  strengths: string[];
+  improvements: string[];
+  actionItems: string[];
+  objections: Array<{
+    objection: string;
+    response: string;
+    effectiveness: number;
+  }>;
+  sentiment: { overall: string; score: number };
+  talkRatio: number;
+  competitorMentions: string[];
+}
+
+interface MeetingInfo {
+  meetingCode?: string;
+  startTime?: string;
+  endTime?: string;
+  duration?: number;
+  participants?: Record<string, unknown> | Array<Record<string, unknown>>;
+  spaceName?: string;
+  textSource?: string;
+  entriesCount?: number;
+  customerName?: string;
+  customerCompany?: string;
 }
 
 const statusConfig: Record<
@@ -96,6 +129,12 @@ export default function SessionPage() {
   const [scores, setScores] = useState<Score[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Analysis state
+  const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [meetingInfo, setMeetingInfo] = useState<MeetingInfo | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(true);
+
   // Fetch session data
   const fetchSession = useCallback(async () => {
     try {
@@ -115,27 +154,43 @@ export default function SessionPage() {
       const { data } = await response.json();
       setSession(data);
 
-      // Extract criteria and groups from template snapshot
       const templateSnapshot = data.template_snapshot as {
         criteria?: Criteria[];
         groups?: CriteriaGroup[];
       };
       setCriteria(templateSnapshot?.criteria || []);
       setGroups(templateSnapshot?.groups || []);
-
-      // Set scores
       setScores(data.scores || []);
-    } catch (error) {
-      console.error("Error fetching session:", error);
+    } catch (err) {
+      console.error("Error fetching session:", err);
       setError("Failed to load session");
     } finally {
       setLoading(false);
     }
   }, [sessionId]);
 
+  // Fetch analysis data
+  const fetchAnalysis = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/analysis`);
+      if (!response.ok) return;
+
+      const { data } = await response.json();
+      if (data?.analysis) setAnalysis(data.analysis);
+      if (data?.transcript) setTranscript(data.transcript);
+      if (data?.meetingInfo) setMeetingInfo(data.meetingInfo);
+    } catch (err) {
+      console.error("Error fetching analysis:", err);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, [sessionId]);
+
   useEffect(() => {
+    // Fetch both in parallel
     fetchSession();
-  }, [fetchSession]);
+    fetchAnalysis();
+  }, [fetchSession, fetchAnalysis]);
 
   // Handle score change
   const handleScoreChange = async (
@@ -150,21 +205,14 @@ export default function SessionPage() {
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            value,
-            is_na: isNa,
-            comment,
-          }),
+          body: JSON.stringify({ value, is_na: isNa, comment }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to save score");
-      }
+      if (!response.ok) throw new Error("Failed to save score");
 
       const { data: savedScore } = await response.json();
 
-      // Update local scores
       setScores((prev) => {
         const index = prev.findIndex((s) => s.criteria_id === criteriaId);
         if (index >= 0) {
@@ -175,15 +223,14 @@ export default function SessionPage() {
         return [...prev, savedScore];
       });
 
-      // Update session if status changed
       if (session?.status === "pending") {
         setSession((prev) =>
           prev ? { ...prev, status: "in_progress" } : null
         );
       }
-    } catch (error) {
-      console.error("Error saving score:", error);
-      throw error;
+    } catch (err) {
+      console.error("Error saving score:", err);
+      throw err;
     }
   };
 
@@ -201,12 +248,10 @@ export default function SessionPage() {
 
       const { data } = await response.json();
       setSession((prev) => (prev ? { ...prev, ...data } : null));
-
-      // Redirect to sessions list
       router.push("/dashboard/sessions");
-    } catch (error) {
-      console.error("Error completing session:", error);
-      throw error;
+    } catch (err) {
+      console.error("Error completing session:", err);
+      throw err;
     }
   };
 
@@ -216,6 +261,21 @@ export default function SessionPage() {
     (isCoach || isAdmin) &&
     (session?.status === "pending" || session?.status === "in_progress");
   const isViewOnly = !canScore;
+
+  // Tab logic
+  const hasAnalysis = !!analysis;
+  const hasTranscript = !!transcript;
+  const isCompletedOrReviewed =
+    session?.status === "completed" || session?.status === "reviewed";
+
+  const defaultTab =
+    isCompletedOrReviewed && hasAnalysis
+      ? "insights"
+      : session?.status === "pending" || session?.status === "in_progress"
+        ? "scoring"
+        : hasAnalysis
+          ? "insights"
+          : "scoring";
 
   if (loading) {
     return (
@@ -227,6 +287,7 @@ export default function SessionPage() {
             <div className="h-4 w-32 bg-muted rounded mt-2 animate-pulse" />
           </div>
         </div>
+        <div className="h-12 w-72 bg-muted rounded-lg animate-pulse mb-6" />
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <div className="h-96 rounded-xl bg-muted animate-pulse" />
@@ -249,7 +310,7 @@ export default function SessionPage() {
               {error || "Session not found"}
             </h2>
             <p className="text-muted-foreground mb-6">
-              The session you're looking for doesn't exist or you don't have
+              The session you&apos;re looking for doesn&apos;t exist or you don&apos;t have
               permission to view it.
             </p>
             <Button onClick={() => router.push("/dashboard/sessions")}>
@@ -280,13 +341,19 @@ export default function SessionPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <ClipboardCheck className="h-6 w-6 text-primary" />
-              {template?.name || "Scoring Session"}
+              {template?.name || "Coaching Session"}
             </h1>
             <div className="flex flex-wrap items-center gap-3 mt-2">
               <Badge variant="secondary" className={cn(status.color)}>
                 {status.icon}
                 <span className="ml-1">{status.label}</span>
               </Badge>
+              {hasAnalysis && (
+                <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50 gap-1">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  AI Analyzed
+                </Badge>
+              )}
               {session.google_event_title && (
                 <span className="text-sm text-muted-foreground flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
@@ -341,7 +408,10 @@ export default function SessionPage() {
                 <p className="text-xs text-muted-foreground">Date</p>
                 <p className="font-medium">
                   {session.google_event_start
-                    ? format(new Date(session.google_event_start), "MMM d, yyyy h:mm a")
+                    ? format(
+                        new Date(session.google_event_start),
+                        "MMM d, yyyy h:mm a"
+                      )
                     : session.created_at
                       ? format(new Date(session.created_at), "MMM d, yyyy")
                       : "Not scheduled"}
@@ -354,60 +424,134 @@ export default function SessionPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Pass Threshold</p>
-                <p className="font-medium">{template?.pass_threshold || 70}%</p>
+                <p className="font-medium">
+                  {template?.pass_threshold || 70}%
+                </p>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Main Content */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Scoring Interface */}
-        <div className="lg:col-span-2">
-          {isViewOnly && (
-            <Card className="mb-4 bg-muted/50">
-              <CardContent className="p-4 flex items-center gap-3">
-                <Eye className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">View Only</p>
-                  <p className="text-sm text-muted-foreground">
-                    {session.status === "completed" || session.status === "reviewed"
-                      ? "This session has been completed."
-                      : "You don't have permission to score this session."}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Tabbed Content */}
+      <Tabs defaultValue={defaultTab} className="space-y-6">
+        <TabsList className="w-full justify-start bg-gray-100/80 p-1 rounded-lg">
+          {hasAnalysis && (
+            <TabsTrigger
+              value="insights"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-6 gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Coaching Insights
+            </TabsTrigger>
           )}
-
-          <ScoringInterface
-            session={session}
-            template={template!}
-            criteria={criteria}
-            groups={groups}
-            initialScores={scores}
-            onScoreChange={handleScoreChange}
-            onComplete={handleComplete}
-            disabled={isViewOnly}
-          />
-        </div>
-
-        {/* Score Summary Sidebar */}
-        <div className="lg:sticky lg:top-4 self-start space-y-4">
-          <ScoreSummary
-            session={session}
-            template={template!}
-            scores={scores}
-            criteria={criteria}
-            groups={groups}
-          />
-
-          {session.call_id && (
-            <CallContextPanel callId={session.call_id} className="w-full" />
+          {hasTranscript && (
+            <TabsTrigger
+              value="transcript"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-6 gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Transcript
+            </TabsTrigger>
           )}
-        </div>
-      </div>
+          <TabsTrigger
+            value="scoring"
+            className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-6 gap-2"
+          >
+            <PenTool className="h-4 w-4" />
+            Scoring
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Coaching Insights Tab */}
+        {hasAnalysis && (
+          <TabsContent value="insights" className="space-y-6 animate-fade-in">
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <AIInsightsPanel analysis={analysis!} />
+              </div>
+              <div className="lg:sticky lg:top-4 self-start space-y-4">
+                <SessionScoreOverviewCard
+                  score={session.percentage_score ?? null}
+                  passStatus={session.pass_status ?? null}
+                  passThreshold={template?.pass_threshold || 70}
+                  talkRatio={analysis?.talkRatio}
+                  sentiment={analysis?.sentiment}
+                  templateName={template?.name}
+                />
+                <ScoreSummary
+                  session={session}
+                  template={template!}
+                  scores={scores}
+                  criteria={criteria}
+                  groups={groups}
+                />
+              </div>
+            </div>
+          </TabsContent>
+        )}
+
+        {/* Transcript Tab */}
+        {hasTranscript && (
+          <TabsContent value="transcript" className="animate-fade-in">
+            <TranscriptViewer
+              transcript={transcript!}
+              meetingInfo={meetingInfo}
+            />
+          </TabsContent>
+        )}
+
+        {/* Scoring Tab */}
+        <TabsContent value="scoring" className="animate-fade-in">
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              {isViewOnly && (
+                <Card className="mb-4 bg-muted/50">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <Eye className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">View Only</p>
+                      <p className="text-sm text-muted-foreground">
+                        {session.status === "completed" ||
+                        session.status === "reviewed"
+                          ? "This session has been completed."
+                          : "You don't have permission to score this session."}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <ScoringInterface
+                session={session}
+                template={template!}
+                criteria={criteria}
+                groups={groups}
+                initialScores={scores}
+                onScoreChange={handleScoreChange}
+                onComplete={handleComplete}
+                disabled={isViewOnly}
+              />
+            </div>
+
+            <div className="lg:sticky lg:top-4 self-start space-y-4">
+              <ScoreSummary
+                session={session}
+                template={template!}
+                scores={scores}
+                criteria={criteria}
+                groups={groups}
+              />
+              {session.call_id && (
+                <CallContextPanel
+                  callId={session.call_id}
+                  className="w-full"
+                />
+              )}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

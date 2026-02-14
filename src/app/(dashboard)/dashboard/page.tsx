@@ -7,6 +7,7 @@ import { HeroSection } from "@/components/home/HeroSection";
 import { ConnectionBanner } from "@/components/home/ConnectionBanner";
 import { TemplateFlowGrid, type TemplateCardData } from "@/components/home/TemplateFlowGrid";
 import { ResultsSummary } from "@/components/home/ResultsSummary";
+import { NeedsReviewCard } from "@/components/home/NeedsReviewCard";
 import type { DashboardStats } from "@/types";
 
 interface RecentSession {
@@ -189,6 +190,9 @@ export default function DashboardPage() {
 
       {/* Connection banner */}
       {showConnectionBanner && <ConnectionBanner />}
+
+      {/* Needs Review */}
+      <NeedsReviewCard />
 
       {/* Template Gallery */}
       <div>
