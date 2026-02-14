@@ -103,11 +103,16 @@ export async function processNewTranscript(
       duration = Math.round((end - start) / 1000); // seconds
     }
 
+    // 4b. Get or create a system caller for auto-pipeline calls
+    //     (caller_id is NOT NULL on calls table)
+    const callerId = await getOrCreateSystemCaller(supabase, user.org_id);
+
     // 5. Create call record
     const { data: call, error: callError } = await supabase
       .from("calls")
       .insert({
         org_id: user.org_id,
+        caller_id: callerId,
         agent_id: agentId,
         source: "google_meet",
         status: "pending",
@@ -315,7 +320,7 @@ export async function analyzeCall(callId: string): Promise<PipelineResult> {
       is_na: false,
       is_auto_fail_triggered: score.isAutoFailTriggered || false,
       comment: score.comment || null,
-      scored_by: "ai",
+      scored_by: null, // AI-scored (scored_by is UUID FK to auth.users)
       scored_at: new Date().toISOString(),
       criteria_snapshot: criteria.find((c) => c.id === score.criteriaId) || null,
     }));
@@ -467,4 +472,52 @@ async function findTemplateForCall(
     .single();
 
   return (anyTemplate as unknown as Template) || null;
+}
+
+/**
+ * Get or create a system caller record for auto-pipeline calls.
+ * The calls table has caller_id NOT NULL, so we need a valid caller.
+ */
+async function getOrCreateSystemCaller(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  orgId: string
+): Promise<string> {
+  // Look for existing system caller
+  const { data: existing } = await supabase
+    .from("callers")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("name", "[Auto] Google Meet")
+    .single();
+
+  if (existing) {
+    return existing.id;
+  }
+
+  // Create system caller for this org
+  const { data: created, error } = await supabase
+    .from("callers")
+    .insert({
+      org_id: orgId,
+      name: "[Auto] Google Meet",
+      email: "auto-pipeline@system.kalyxi.ai",
+      is_active: true,
+    })
+    .select("id")
+    .single();
+
+  if (error || !created) {
+    // Fallback: use any existing caller in the org
+    const { data: fallback } = await supabase
+      .from("callers")
+      .select("id")
+      .eq("org_id", orgId)
+      .limit(1)
+      .single();
+
+    if (fallback) return fallback.id;
+    throw new Error("No caller available for auto-pipeline");
+  }
+
+  return created.id;
 }
