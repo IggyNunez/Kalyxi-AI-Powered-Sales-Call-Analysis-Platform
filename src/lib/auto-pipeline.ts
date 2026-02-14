@@ -118,11 +118,6 @@ export async function processNewTranscript(
         auto_analysis_status: "pending",
         duration,
         call_timestamp: transcript.meetingStartTime || new Date().toISOString(),
-        metadata: {
-          meeting_space: transcript.meetingSpaceName,
-          participants: transcript.participants,
-          source: "auto_pipeline",
-        },
       })
       .select("id")
       .single();
@@ -258,7 +253,6 @@ export async function analyzeCall(callId: string): Promise<PipelineResult> {
         template_version: template.version,
         template_snapshot: templateSnapshot,
         started_at: new Date().toISOString(),
-        metadata: { source: "auto_pipeline", meet_code: call.meet_code },
       })
       .select("id")
       .single();
